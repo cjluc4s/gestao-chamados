@@ -36,7 +36,7 @@ public class DashboardController : Controller
         }
         else if (User.IsInRole(RoleNames.Agent))
         {
-            query = query.Where(t => t.AssignedToUserId == currentUserId);
+            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
         }
 
         var data = await query.ToListAsync();

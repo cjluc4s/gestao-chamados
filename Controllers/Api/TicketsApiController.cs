@@ -50,7 +50,7 @@ public class TicketsController : ControllerBase
         }
         else if (User.IsInRole(RoleNames.Agent))
         {
-            query = query.Where(t => t.AssignedToUserId == currentUserId);
+            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
         }
 
         return Ok(await query.OrderByDescending(t => t.CreatedAtUtc).ToListAsync());
@@ -89,7 +89,7 @@ public class TicketsController : ControllerBase
 
         if (User.IsInRole(RoleNames.Admin)
             || (User.IsInRole(RoleNames.User) && ticket.CreatedByUserId == currentUserId)
-            || (User.IsInRole(RoleNames.Agent) && ticket.AssignedToUserId == currentUserId))
+            || (User.IsInRole(RoleNames.Agent) && (ticket.AssignedToUserId == currentUserId || ticket.AssignedToUserId == null)))
         {
             return Ok(ticket);
         }

@@ -5,25 +5,71 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Chamado #@Model.Id - @Model.Title</h2>
+    <h2 class="page-title mb-0">Chamado #@Model.Id - @Model.Title</h2>
     <a asp-action="Index" class="btn btn-outline-secondary">Voltar</a>
 </div>
 
 <div class="row g-3">
     <div class="col-md-8">
-        <div class="card mb-3">
+        <div class="card surface-card mb-3">
             <div class="card-body">
                 <p>@Model.Description</p>
                 <hr />
-                <p class="mb-1"><strong>Categoria:</strong> @Model.Category</p>
-                <p class="mb-1"><strong>Status:</strong> @Model.Status</p>
-                <p class="mb-1"><strong>Prioridade:</strong> @Model.Priority</p>
-                <p class="mb-1"><strong>Criado por:</strong> @Model.CreatedBy</p>
-                <p class="mb-0"><strong>Atribuído para:</strong> @(Model.AssignedTo ?? "Não atribuído")</p>
+                <div class="details-meta">
+                    <p><strong>Categoria:</strong> @Model.Category</p>
+                    <p>
+                        <strong>Status:</strong>
+                        @{
+                            var sCss = Model.Status switch
+                            {
+                                TicketStatus.Open => "open",
+                                TicketStatus.InProgress => "inprogress",
+                                TicketStatus.WaitingUser => "waitinguser",
+                                TicketStatus.Resolved => "resolved",
+                                TicketStatus.Closed => "closed",
+                                _ => "open"
+                            };
+                            var sLabel = Model.Status switch
+                            {
+                                TicketStatus.Open => "Aberto",
+                                TicketStatus.InProgress => "Em andamento",
+                                TicketStatus.WaitingUser => "Aguardando",
+                                TicketStatus.Resolved => "Resolvido",
+                                TicketStatus.Closed => "Fechado",
+                                _ => Model.Status.ToString()
+                            };
+                        }
+                        <span class="badge-status @sCss">@sLabel</span>
+                    </p>
+                    <p>
+                        <strong>Prioridade:</strong>
+                        @{
+                            var pCss = Model.Priority switch
+                            {
+                                TicketPriority.Low => "low",
+                                TicketPriority.Medium => "medium",
+                                TicketPriority.High => "high",
+                                TicketPriority.Critical => "critical",
+                                _ => "low"
+                            };
+                            var pLabel = Model.Priority switch
+                            {
+                                TicketPriority.Low => "Baixa",
+                                TicketPriority.Medium => "Média",
+                                TicketPriority.High => "Alta",
+                                TicketPriority.Critical => "Crítica",
+                                _ => Model.Priority.ToString()
+                            };
+                        }
+                        <span class="badge-priority @pCss">@pLabel</span>
+                    </p>
+                    <p><strong>Criado por:</strong> @Model.CreatedBy</p>
+                    <p class="mb-0"><strong>Atribuído para:</strong> @(Model.AssignedTo ?? "Não atribuído")</p>
+                </div>
             </div>
         </div>
 
-        <div class="card mb-3">
+        <div class="card surface-card mb-3">
             <div class="card-header">Interações</div>
             <div class="card-body">
                 @if (!Model.Comments.Any())
@@ -34,12 +80,12 @@
                 {
                     foreach (var comment in Model.Comments)
                     {
-                        <div class="border rounded p-2 mb-2 @(comment.IsAgent ? "bg-light" : "")">
-                            <div class="d-flex justify-content-between">
-                                <strong>@comment.Author</strong>
-                                <small>@comment.CreatedAtUtc.ToLocalTime()</small>
+                        <div class="comment-bubble mb-2 @(comment.IsAgent ? "agent" : "")">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="comment-author">@comment.Author</span>
+                                <span class="comment-time">@comment.CreatedAtUtc.ToLocalTime().ToString("g")</span>
                             </div>
-                            <div>@comment.Message</div>
+                            <div class="comment-text">@comment.Message</div>
                         </div>
                     }
                 }
@@ -54,24 +100,24 @@
     </div>
 
     <div class="col-md-4">
-        <div class="card mb-3">
+        <div class="card surface-card mb-3">
             <div class="card-header">SLA</div>
             <div class="card-body">
                 <p><strong>Limite:</strong> @(Model.DueAtUtc?.ToLocalTime().ToString("g") ?? "-")</p>
                 @if (Model.IsSlaBreached)
                 {
-                    <span class="badge text-bg-danger">SLA vencido</span>
+                    <span class="badge-sla breach">⚠ SLA vencido</span>
                 }
                 else
                 {
-                    <span class="badge text-bg-success">Dentro do SLA</span>
+                    <span class="badge-sla ok">✓ Dentro do SLA</span>
                 }
             </div>
         </div>
 
         @if (User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin))
         {
-            <div class="card mb-3">
+            <div class="card surface-card mb-3">
                 <div class="card-header">Ações</div>
                 <div class="card-body">
                     <form method="post" asp-action="ChangeStatus">
@@ -91,7 +137,7 @@
             </div>
         }
 
-        <div class="card">
+        <div class="card surface-card">
             <div class="card-header">Histórico de status</div>
             <div class="card-body">
                 @if (!Model.History.Any())
@@ -103,9 +149,13 @@
                     <ul class="list-group list-group-flush">
                         @foreach (var item in Model.History)
                         {
-                            <li class="list-group-item px-0">
-                                <div><strong>@(item.FromStatus?.ToString() ?? "(inicial)")</strong> → <strong>@item.ToStatus</strong></div>
-                                <small>@item.ChangedBy em @item.ChangedAtUtc.ToLocalTime()</small>
+                            <li class="list-group-item px-0 timeline-item">
+                                <div>
+                                    <strong>@(item.FromStatus?.ToString() ?? "(inicial)")</strong>
+                                    <span class="status-arrow">→</span>
+                                    <strong>@item.ToStatus</strong>
+                                </div>
+                                <small class="comment-time">@item.ChangedBy · @item.ChangedAtUtc.ToLocalTime().ToString("g")</small>
                             </li>
                         }
                     </ul>

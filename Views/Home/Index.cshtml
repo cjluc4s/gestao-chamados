@@ -2,38 +2,42 @@
     ViewData["Title"] = "Início";
 }
 
-<div class="p-4 mb-4 bg-light border rounded-3">
+<div class="p-4 mb-4 hero-panel">
     <h1 class="display-6">Sistema de Gestão de Chamados</h1>
-    <p class="lead mb-0">Projeto com ASP.NET Core MVC + EF Core + SQLite + Identity.</p>
+    <p class="lead mb-0">Help Desk corporativo com ASP.NET Core MVC, EF Core, SQLite, Identity, SLA e API REST.</p>
 </div>
 
 <div class="row g-3">
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5>Usuário comum</h5>
+        <div class="card h-100 feature-card">
+            <div class="card-body text-center">
+                <div class="empty-state-icon">👤</div>
+                <h5 class="card-title">Usuário</h5>
                 <p>Abre chamado, acompanha status e responde interações.</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5>Atendente</h5>
-                <p>Visualiza chamados atribuídos e altera status.</p>
+        <div class="card h-100 feature-card">
+            <div class="card-body text-center">
+                <div class="empty-state-icon">🛠️</div>
+                <h5 class="card-title">Atendente</h5>
+                <p>Visualiza chamados, assume e altera status.</p>
             </div>
         </div>
     </div>
     <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5>Admin</h5>
-                <p>Gerencia usuários, prioridades e acompanha indicadores.</p>
+        <div class="card h-100 feature-card">
+            <div class="card-body text-center">
+                <div class="empty-state-icon">👑</div>
+                <h5 class="card-title">Admin</h5>
+                <p>Gerencia usuários, SLA e acompanha indicadores.</p>
             </div>
         </div>
     </div>
 </div>
 
-<div class="mt-4">
-    <a class="btn btn-primary" asp-controller="Tickets" asp-action="Index">Entrar nos chamados</a>
+<div class="mt-4 text-center">
+    <a class="btn btn-primary" asp-controller="Tickets" asp-action="Index">Acessar chamados</a>
+    <a class="btn btn-outline-primary ms-2" asp-controller="Dashboard" asp-action="Index">Ver dashboard</a>
 </div>

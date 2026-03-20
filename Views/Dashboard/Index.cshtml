@@ -3,23 +3,39 @@
     ViewData["Title"] = "Dashboard";
 }
 
-<h2>Dashboard</h2>
+<h2 class="page-title">Dashboard</h2>
 
 <div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Total</h6><h3>@Model.TotalTickets</h3></div></div></div>
-    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Abertos</h6><h3>@Model.OpenTickets</h3></div></div></div>
-    <div class="col-md-3"><div class="card"><div class="card-body"><h6>Resolvidos</h6><h3>@Model.ResolvedTickets</h3></div></div></div>
-    <div class="col-md-3"><div class="card"><div class="card-body"><h6>SLA vencido</h6><h3>@Model.SlaBreachedTickets</h3></div></div></div>
+    <div class="col-md-3"><div class="card stats-card total h-100"><div class="card-body"><div class="stats-label">Total</div><div class="stats-value">@Model.TotalTickets</div></div></div></div>
+    <div class="col-md-3"><div class="card stats-card open h-100"><div class="card-body"><div class="stats-label">Abertos</div><div class="stats-value">@Model.OpenTickets</div></div></div></div>
+    <div class="col-md-3"><div class="card stats-card done h-100"><div class="card-body"><div class="stats-label">Resolvidos</div><div class="stats-value">@Model.ResolvedTickets</div></div></div></div>
+    <div class="col-md-3"><div class="card stats-card breach h-100"><div class="card-body"><div class="stats-label">SLA vencido</div><div class="stats-value">@Model.SlaBreachedTickets</div></div></div></div>
 </div>
 
-<div class="card">
+<div class="card surface-card">
     <div class="card-header">Chamados por prioridade</div>
     <div class="card-body">
         <ul class="list-group list-group-flush">
             @foreach (var item in Model.ByPriority.OrderBy(x => x.Key))
             {
-                <li class="list-group-item d-flex justify-content-between">
-                    <span>@item.Key</span>
+                var dashPriCss = item.Key switch
+                {
+                    gestao_chamados.Models.TicketPriority.Low => "low",
+                    gestao_chamados.Models.TicketPriority.Medium => "medium",
+                    gestao_chamados.Models.TicketPriority.High => "high",
+                    gestao_chamados.Models.TicketPriority.Critical => "critical",
+                    _ => "low"
+                };
+                var dashPriLabel = item.Key switch
+                {
+                    gestao_chamados.Models.TicketPriority.Low => "Baixa",
+                    gestao_chamados.Models.TicketPriority.Medium => "Média",
+                    gestao_chamados.Models.TicketPriority.High => "Alta",
+                    gestao_chamados.Models.TicketPriority.Critical => "Crítica",
+                    _ => item.Key.ToString()
+                };
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span class="badge-priority @dashPriCss">@dashPriLabel</span>
                     <strong>@item.Value</strong>
                 </li>
             }

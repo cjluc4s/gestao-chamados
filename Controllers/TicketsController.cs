@@ -42,7 +42,7 @@ public class TicketsController : Controller
         }
         else if (User.IsInRole(RoleNames.Agent))
         {
-            query = query.Where(t => t.AssignedToUserId == currentUserId);
+            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
         }
 
         if (status.HasValue)
@@ -342,7 +342,7 @@ public class TicketsController : Controller
 
         if (User.IsInRole(RoleNames.Agent))
         {
-            return Task.FromResult(ticket.AssignedToUserId == currentUserId);
+            return Task.FromResult(ticket.AssignedToUserId == currentUserId || ticket.AssignedToUserId == null);
         }
 
         return Task.FromResult(false);

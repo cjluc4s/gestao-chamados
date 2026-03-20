@@ -5,65 +5,117 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Chamados</h2>
+    <h2 class="page-title mb-0">Chamados</h2>
     @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
     {
         <a class="btn btn-primary" asp-action="Create">Novo chamado</a>
     }
 </div>
 
-<form method="get" class="row g-2 mb-3">
-    <div class="col-md-3">
-        <select name="status" class="form-select" asp-items="Html.GetEnumSelectList<TicketStatus>()">
-            <option value="">Todos os status</option>
-        </select>
+<div class="card surface-card mb-3">
+    <div class="filters-panel">
+        <form method="get" class="row g-2">
+            <div class="col-md-3">
+                <select name="status" class="form-select" asp-items="Html.GetEnumSelectList<TicketStatus>()">
+                    <option value="">Todos os status</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input name="startDate" type="date" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <input name="endDate" type="date" class="form-control" />
+            </div>
+            <div class="col-md-3 d-grid">
+                <button type="submit" class="btn btn-outline-secondary">Filtrar</button>
+            </div>
+        </form>
     </div>
-    <div class="col-md-3">
-        <input name="startDate" type="date" class="form-control" />
-    </div>
-    <div class="col-md-3">
-        <input name="endDate" type="date" class="form-control" />
-    </div>
-    <div class="col-md-3 d-grid">
-        <button type="submit" class="btn btn-outline-secondary">Filtrar</button>
-    </div>
-</form>
+</div>
 
-<table class="table table-striped align-middle">
-    <thead>
-        <tr>
-            <th>#</th>
-            <th>Título</th>
-            <th>Categoria</th>
-            <th>Status</th>
-            <th>Prioridade</th>
-            <th>SLA</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var item in Model)
-    {
-        <tr>
-            <td>@item.Id</td>
-            <td>@item.Title</td>
-            <td>@item.Category</td>
-            <td>@item.Status</td>
-            <td>@item.Priority</td>
-            <td>
-                @if (item.IsSlaBreached)
+<div class="card surface-card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped align-middle table-modern mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Título</th>
+                        <th>Categoria</th>
+                        <th>Status</th>
+                        <th>Prioridade</th>
+                        <th>SLA</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model)
                 {
-                    <span class="badge text-bg-danger">Vencido</span>
+                    <tr>
+                        <td><strong>@item.Id</strong></td>
+                        <td>@item.Title</td>
+                        <td>@item.Category</td>
+                        <td>
+                            @{
+                                var statusCss = item.Status switch
+                                {
+                                    TicketStatus.Open => "open",
+                                    TicketStatus.InProgress => "inprogress",
+                                    TicketStatus.WaitingUser => "waitinguser",
+                                    TicketStatus.Resolved => "resolved",
+                                    TicketStatus.Closed => "closed",
+                                    _ => "open"
+                                };
+                                var statusLabel = item.Status switch
+                                {
+                                    TicketStatus.Open => "Aberto",
+                                    TicketStatus.InProgress => "Em andamento",
+                                    TicketStatus.WaitingUser => "Aguardando",
+                                    TicketStatus.Resolved => "Resolvido",
+                                    TicketStatus.Closed => "Fechado",
+                                    _ => item.Status.ToString()
+                                };
+                            }
+                            <span class="badge-status @statusCss">@statusLabel</span>
+                        </td>
+                        <td>
+                            @{
+                                var priCss = item.Priority switch
+                                {
+                                    TicketPriority.Low => "low",
+                                    TicketPriority.Medium => "medium",
+                                    TicketPriority.High => "high",
+                                    TicketPriority.Critical => "critical",
+                                    _ => "low"
+                                };
+                                var priLabel = item.Priority switch
+                                {
+                                    TicketPriority.Low => "Baixa",
+                                    TicketPriority.Medium => "Média",
+                                    TicketPriority.High => "Alta",
+                                    TicketPriority.Critical => "Crítica",
+                                    _ => item.Priority.ToString()
+                                };
+                            }
+                            <span class="badge-priority @priCss">@priLabel</span>
+                        </td>
+                        <td>
+                            @if (item.IsSlaBreached)
+                            {
+                                <span class="badge-sla breach">⚠ Vencido</span>
+                            }
+                            else
+                            {
+                                <span class="badge-sla ok">✓ OK</span>
+                            }
+                        </td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Detalhes</a>
+                        </td>
+                    </tr>
                 }
-                else
-                {
-                    <span class="badge text-bg-success">OK</span>
-                }
-            </td>
-            <td>
-                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Detalhes</a>
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

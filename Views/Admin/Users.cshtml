@@ -3,24 +3,30 @@
     ViewData["Title"] = "Usuários";
 }
 
-<h2>Usuários</h2>
+<h2 class="page-title">Usuários</h2>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Nome</th>
-            <th>Email</th>
-            <th>Login</th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var user in Model)
-    {
-        <tr>
-            <td>@user.FullName</td>
-            <td>@user.Email</td>
-            <td>@user.UserName</td>
-        </tr>
-    }
-    </tbody>
-</table>
+<div class="card surface-card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-modern mb-0">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Email</th>
+                        <th>Login</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var user in Model)
+                {
+                    <tr>
+                        <td>@user.FullName</td>
+                        <td>@user.Email</td>
+                        <td>@user.UserName</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
