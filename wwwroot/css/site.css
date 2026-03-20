@@ -392,3 +392,56 @@ body {
 .empty-state p {
   font-size: 0.95rem;
 }
+
+/* ===== Anexos ===== */
+.attachment-item {
+  padding: 0.6rem 0;
+  border-color: #f3f4f6;
+}
+
+.attachment-icon {
+  margin-right: 0.3rem;
+}
+
+.attachment-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.attachment-link:hover {
+  text-decoration: underline;
+  color: #1d4ed8;
+}
+
+/* ===== Toast Notifications (SignalR) ===== */
+.toast-notification {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #3b82f6;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  animation: toastSlideIn 0.35s ease;
+}
+
+.toast-notification .toast-header {
+  background: transparent;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 0.85rem;
+}
+
+.toast-notification .toast-body {
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.toast-hiding {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: all 0.4s ease;
+}
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}

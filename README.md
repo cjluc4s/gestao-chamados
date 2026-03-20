@@ -12,6 +12,8 @@ Sistema de Gestão de Chamados interno, desenvolvido com foco em fluxo real de a
 - **Entity Framework Core** (Code First)
 - **SQLite** (sem necessidade de SQL Server)
 - **ASP.NET Identity** (autenticação + roles)
+- **SignalR** (notificações em tempo real)
+- **QuestPDF** (exportação de relatórios em PDF)
 - **Bootstrap 5** (UI responsiva)
 - **API REST** paralela
 
@@ -53,14 +55,16 @@ Chamados com SLA vencido são sinalizados visualmente na listagem e nos detalhes
 ## 🧩 Funcionalidades
 
 - ✅ Abertura de chamados (título, descrição, prioridade, categoria)
+- ✅ Upload de anexos nos chamados (múltiplos arquivos, limite 10 MB)
 - ✅ Comentários em thread (diferencia usuário vs suporte)
 - ✅ Controle de visibilidade por role
 - ✅ Atribuição de chamados (agente assume da fila)
 - ✅ Alteração de status com histórico de auditoria
 - ✅ Dashboard com indicadores (total, abertos, resolvidos, SLA vencido)
 - ✅ Filtros avançados (status, data início/fim)
-- ✅ Notificações na UI (alertas de ação)
+- ✅ Notificações em tempo real (SignalR)
 - ✅ SLA com cálculo automático por prioridade
+- ✅ Exportação de dados (CSV e PDF)
 - ✅ API REST (`GET /api/tickets`, `GET /api/tickets/{id}`)
 - ✅ Seed automático (usuários, roles, categorias)
 
@@ -73,6 +77,7 @@ Chamados com SLA vencido são sinalizados visualmente na listagem e nos detalhes
 - `TicketComment` (interações/thread)
 - `TicketStatusHistory` (auditoria de mudanças)
 - `Category` (classificação do chamado)
+- `Attachment` (anexos dos chamados)
 
 ---
 
@@ -119,11 +124,14 @@ gestao-chamados/
 │   ├── ApplicationDbContext.cs
 │   ├── DbInitializer.cs
 │   └── SlaPolicy.cs
+├── Hubs/
+│   └── NotificationHub.cs
 ├── Models/
 │   ├── ApplicationUser.cs
 │   ├── Ticket.cs
 │   ├── TicketComment.cs
 │   ├── TicketStatusHistory.cs
+│   ├── Attachment.cs
 │   ├── Category.cs
 │   ├── TicketStatus.cs
 │   ├── TicketPriority.cs
@@ -136,19 +144,11 @@ gestao-chamados/
 │   ├── Admin/
 │   └── Shared/
 └── wwwroot/
-    └── css/
-        └── site.css
+    ├── css/
+    │   └── site.css
+    └── js/
+        └── notifications.js
 ```
-
----
-
-## 📌 Próximos passos
-
-- [ ] Upload de anexos nos chamados
-- [ ] Notificações em tempo real (SignalR)
-- [ ] Testes automatizados (xUnit)
-- [ ] Relatórios por período
-- [ ] Exportação de dados (CSV/PDF)
 
 ---
 

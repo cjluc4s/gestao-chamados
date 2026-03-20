@@ -8,7 +8,7 @@
 
 <div class="card surface-card">
     <div class="card-body">
-        <form method="post" class="mt-1">
+        <form method="post" enctype="multipart/form-data" class="mt-1">
             <div class="mb-3">
                 <label asp-for="Title" class="form-label"></label>
                 <input asp-for="Title" class="form-control" />
@@ -31,6 +31,12 @@
                     <select asp-for="CategoryId" class="form-select" asp-items="Model.Categories"></select>
                     <span asp-validation-for="CategoryId" class="text-danger"></span>
                 </div>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Files" class="form-label">Anexos</label>
+                <input asp-for="Files" type="file" class="form-control" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" />
+                <small class="form-text text-muted">Máx. 10 MB por arquivo. Formatos: imagens, PDF, documentos, texto, compactados.</small>
             </div>
 
             <button type="submit" class="btn btn-primary">Abrir chamado</button>

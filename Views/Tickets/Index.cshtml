@@ -6,10 +6,20 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="page-title mb-0">Chamados</h2>
-    @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
-    {
-        <a class="btn btn-primary" asp-action="Create">Novo chamado</a>
-    }
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-success btn-sm" asp-action="ExportCsv"
+           asp-route-status="@Context.Request.Query["status"]"
+           asp-route-startDate="@Context.Request.Query["startDate"]"
+           asp-route-endDate="@Context.Request.Query["endDate"]">📥 CSV</a>
+        <a class="btn btn-outline-danger btn-sm" asp-action="ExportPdf"
+           asp-route-status="@Context.Request.Query["status"]"
+           asp-route-startDate="@Context.Request.Query["startDate"]"
+           asp-route-endDate="@Context.Request.Query["endDate"]">📄 PDF</a>
+        @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
+        {
+            <a class="btn btn-primary btn-sm" asp-action="Create">Novo chamado</a>
+        }
+    </div>
 </div>
 
 <div class="card surface-card mb-3">

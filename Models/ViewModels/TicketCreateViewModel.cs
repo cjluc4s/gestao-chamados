@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace gestao_chamados.Models.ViewModels;
@@ -18,6 +19,8 @@ public class TicketCreateViewModel
 
     [Required]
     public int CategoryId { get; set; }
+
+    public List<IFormFile>? Files { get; set; }
 
     public List<SelectListItem> Categories { get; set; } = [];
 }

@@ -15,4 +15,5 @@ public class TicketDetailsViewModel
     public bool IsSlaBreached { get; set; }
     public List<TicketCommentViewModel> Comments { get; set; } = [];
     public List<TicketStatusHistoryViewModel> History { get; set; } = [];
+    public List<AttachmentViewModel> Attachments { get; set; } = [];
 }

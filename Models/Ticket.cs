@@ -37,6 +37,7 @@ public class Ticket
     [StringLength(260)]
     public string? AttachmentPath { get; set; }
 
+    public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     public ICollection<TicketComment> Comments { get; set; } = new List<TicketComment>();
     public ICollection<TicketStatusHistory> StatusHistory { get; set; } = new List<TicketStatusHistory>();
 }
