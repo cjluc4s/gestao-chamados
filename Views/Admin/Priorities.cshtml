@@ -1,0 +1,24 @@
+@model Dictionary<gestao_chamados.Models.TicketPriority, TimeSpan>
+@{
+    ViewData["Title"] = "SLAs por prioridade";
+}
+
+<h2>SLAs por prioridade</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Prioridade</th>
+            <th>Tempo máximo</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model.OrderBy(x => x.Key))
+    {
+        <tr>
+            <td>@item.Key</td>
+            <td>@item.Value.TotalHours horas</td>
+        </tr>
+    }
+    </tbody>
+</table>

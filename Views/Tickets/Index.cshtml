@@ -1,0 +1,69 @@
+@model IEnumerable<gestao_chamados.Models.ViewModels.TicketListItemViewModel>
+@using gestao_chamados.Models
+@{
+    ViewData["Title"] = "Chamados";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Chamados</h2>
+    @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
+    {
+        <a class="btn btn-primary" asp-action="Create">Novo chamado</a>
+    }
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3">
+        <select name="status" class="form-select" asp-items="Html.GetEnumSelectList<TicketStatus>()">
+            <option value="">Todos os status</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input name="startDate" type="date" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <input name="endDate" type="date" class="form-control" />
+    </div>
+    <div class="col-md-3 d-grid">
+        <button type="submit" class="btn btn-outline-secondary">Filtrar</button>
+    </div>
+</form>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Título</th>
+            <th>Categoria</th>
+            <th>Status</th>
+            <th>Prioridade</th>
+            <th>SLA</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var item in Model)
+    {
+        <tr>
+            <td>@item.Id</td>
+            <td>@item.Title</td>
+            <td>@item.Category</td>
+            <td>@item.Status</td>
+            <td>@item.Priority</td>
+            <td>
+                @if (item.IsSlaBreached)
+                {
+                    <span class="badge text-bg-danger">Vencido</span>
+                }
+                else
+                {
+                    <span class="badge text-bg-success">OK</span>
+                }
+            </td>
+            <td>
+                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Detalhes</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

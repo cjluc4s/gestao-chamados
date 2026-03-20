@@ -1,0 +1,26 @@
+@model IEnumerable<gestao_chamados.Models.ApplicationUser>
+@{
+    ViewData["Title"] = "Usuários";
+}
+
+<h2>Usuários</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Email</th>
+            <th>Login</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var user in Model)
+    {
+        <tr>
+            <td>@user.FullName</td>
+            <td>@user.Email</td>
+            <td>@user.UserName</td>
+        </tr>
+    }
+    </tbody>
+</table>
