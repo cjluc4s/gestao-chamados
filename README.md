@@ -2,9 +2,6 @@
 
 Sistema web completo para gerenciamento de chamados com controle de acesso, SLA, auditoria e atualização em tempo real.
 
-## 🚀 Demonstração
-(Coloque prints ou vídeo aqui)
-
 ## 🏗️ Arquitetura
 - ASP.NET Core MVC
 - Entity Framework Core
