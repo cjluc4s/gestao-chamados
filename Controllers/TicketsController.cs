@@ -32,17 +32,36 @@ public class TicketsController : Controller
         _hub = hub;
     }
 
-    public async Task<IActionResult> Index(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate)
+    private const int PageSize = 20;
+
+    public async Task<IActionResult> Index(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate, int page = 1)
     {
-        var tickets = await BuildFilteredListAsync(status, userId, startDate, endDate);
-        if (tickets is null) return Challenge();
-        return View(tickets);
+        var query = BuildFilteredQuery(status, userId, startDate, endDate);
+        if (query is null) return Challenge();
+
+        page = Math.Max(1, page);
+        var totalCount = await query.CountAsync();
+        var items = await ProjectToListItems(query.Skip((page - 1) * PageSize).Take(PageSize)).ToListAsync();
+
+        var model = new PagedTicketListViewModel
+        {
+            Items = items,
+            Page = page,
+            PageSize = PageSize,
+            TotalCount = totalCount,
+            Status = status,
+            StartDate = startDate,
+            EndDate = endDate
+        };
+
+        return View(model);
     }
 
     public async Task<IActionResult> ExportCsv(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate)
     {
-        var tickets = await BuildFilteredListAsync(status, userId, startDate, endDate);
-        if (tickets is null) return Challenge();
+        var query = BuildFilteredQuery(status, userId, startDate, endDate);
+        if (query is null) return Challenge();
+        var tickets = await ProjectToListItems(query).ToListAsync();
 
         var sb = new StringBuilder();
         sb.AppendLine("ID;Título;Categoria;Status;Prioridade;Criado por;Atribuído para;Criado em;Limite SLA;SLA");
@@ -69,10 +88,9 @@ public class TicketsController : Controller
 
     public async Task<IActionResult> ExportPdf(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate)
     {
-        var tickets = await BuildFilteredListAsync(status, userId, startDate, endDate);
-        if (tickets is null) return Challenge();
-
-        QuestPDF.Settings.License = LicenseType.Community;
+        var query = BuildFilteredQuery(status, userId, startDate, endDate);
+        if (query is null) return Challenge();
+        var tickets = await ProjectToListItems(query).ToListAsync();
 
         var document = Document.Create(container =>
         {
@@ -493,28 +511,13 @@ public class TicketsController : Controller
 
     private Task<bool> CanAccessTicketAsync(Ticket ticket)
     {
-        if (User.IsInRole(RoleNames.Admin))
-        {
-            return Task.FromResult(true);
-        }
-
         var currentUserId = _userManager.GetUserId(User);
-        if (currentUserId is null)
-        {
-            return Task.FromResult(false);
-        }
+        var role = User.IsInRole(RoleNames.Admin) ? RoleNames.Admin
+            : User.IsInRole(RoleNames.User) ? RoleNames.User
+            : User.IsInRole(RoleNames.Agent) ? RoleNames.Agent
+            : string.Empty;
 
-        if (User.IsInRole(RoleNames.User))
-        {
-            return Task.FromResult(ticket.CreatedByUserId == currentUserId);
-        }
-
-        if (User.IsInRole(RoleNames.Agent))
-        {
-            return Task.FromResult(ticket.AssignedToUserId == currentUserId || ticket.AssignedToUserId == null);
-        }
-
-        return Task.FromResult(false);
+        return Task.FromResult(TicketAccessPolicy.CanAccess(role, currentUserId, ticket.CreatedByUserId, ticket.AssignedToUserId));
     }
 
     private async Task<TicketCreateViewModel> BuildCreateViewModelAsync()
@@ -534,11 +537,6 @@ public class TicketsController : Controller
             .ToListAsync();
     }
 
-    private static readonly HashSet<string> AllowedAttachmentExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".zip", ".rar"
-    };
-
     private async Task SaveAttachmentsAsync(int ticketId, string userId, List<IFormFile> files)
     {
         var uploadsDir = Path.Combine(_env.ContentRootPath, "uploads", ticketId.ToString());
@@ -546,14 +544,10 @@ public class TicketsController : Controller
 
         foreach (var file in files)
         {
-            if (file.Length <= 0 || file.Length > 10 * 1024 * 1024)
+            if (!AttachmentPolicy.IsAllowed(file.FileName, file.Length))
                 continue;
 
-            var extension = Path.GetExtension(file.FileName);
-            if (string.IsNullOrEmpty(extension) || !AllowedAttachmentExtensions.Contains(extension))
-                continue;
-
-            var storedName = $"{Guid.NewGuid()}{extension}";
+            var storedName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
             var filePath = Path.Combine(uploadsDir, storedName);
 
             using (var stream = new FileStream(filePath, FileMode.Create))
@@ -576,7 +570,7 @@ public class TicketsController : Controller
         await _context.SaveChangesAsync();
     }
 
-    private async Task<List<TicketListItemViewModel>?> BuildFilteredListAsync(
+    private IQueryable<Ticket>? BuildFilteredQuery(
         TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate)
     {
         var query = _context.Tickets
@@ -625,24 +619,24 @@ public class TicketsController : Controller
             query = query.Where(t => t.CreatedAtUtc < endUtc);
         }
 
-        return await query
-            .OrderByDescending(t => t.CreatedAtUtc)
-            .Select(t => new TicketListItemViewModel
-            {
-                Id = t.Id,
-                Title = t.Title,
-                Category = t.Category != null ? t.Category.Name : "Sem categoria",
-                Status = t.Status,
-                Priority = t.Priority,
-                CreatedBy = t.CreatedByUser != null ? t.CreatedByUser.FullName : t.CreatedByUserId,
-                AssignedTo = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
-                CreatedAtUtc = t.CreatedAtUtc,
-                DueAtUtc = t.DueAtUtc,
-                IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < DateTime.UtcNow
-                    && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed
-            })
-            .ToListAsync();
+        return query.OrderByDescending(t => t.CreatedAtUtc);
     }
+
+    private static IQueryable<TicketListItemViewModel> ProjectToListItems(IQueryable<Ticket> query) =>
+        query.Select(t => new TicketListItemViewModel
+        {
+            Id = t.Id,
+            Title = t.Title,
+            Category = t.Category != null ? t.Category.Name : "Sem categoria",
+            Status = t.Status,
+            Priority = t.Priority,
+            CreatedBy = t.CreatedByUser != null ? t.CreatedByUser.FullName : t.CreatedByUserId,
+            AssignedTo = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
+            CreatedAtUtc = t.CreatedAtUtc,
+            DueAtUtc = t.DueAtUtc,
+            IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < DateTime.UtcNow
+                && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed
+        });
 
     private static string StatusLabel(TicketStatus s) => s switch
     {

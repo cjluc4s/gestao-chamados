@@ -8,21 +8,26 @@ namespace gestao_chamados.Controllers.Api;
 
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
-public class TicketsController : ControllerBase
+[Route("api/tickets")]
+public class TicketsApiController : ControllerBase
 {
+    private const int MaxPageSize = 100;
+
     private readonly Data.ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public TicketsController(Data.ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public TicketsApiController(Data.ApplicationDbContext context, UserManager<ApplicationUser> userManager)
     {
         _context = context;
         _userManager = userManager;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(int page = 1, int pageSize = 20)
     {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
         var query = _context.Tickets
             .AsNoTracking()
             .Select(t => new
@@ -62,7 +67,19 @@ public class TicketsController : ControllerBase
             query = query.Where(t => false);
         }
 
-        return Ok(await query.OrderByDescending(t => t.CreatedAtUtc).ToListAsync());
+        query = query.OrderByDescending(t => t.CreatedAtUtc);
+
+        var totalCount = await query.CountAsync();
+        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return Ok(new
+        {
+            items,
+            page,
+            pageSize,
+            totalCount,
+            totalPages = totalCount == 0 ? 1 : (int)Math.Ceiling(totalCount / (double)pageSize)
+        });
     }
 
     [HttpGet("{id:int}")]

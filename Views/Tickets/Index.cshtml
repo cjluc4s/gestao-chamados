@@ -1,4 +1,4 @@
-@model IEnumerable<gestao_chamados.Models.ViewModels.TicketListItemViewModel>
+@model gestao_chamados.Models.ViewModels.PagedTicketListViewModel
 @using gestao_chamados.Models
 @{
     ViewData["Title"] = "Chamados";
@@ -26,15 +26,19 @@
     <div class="filters-panel">
         <form method="get" class="row g-2">
             <div class="col-md-3">
-                <select name="status" class="form-select" asp-items="Html.GetEnumSelectList<TicketStatus>()">
+                <select name="status" class="form-select">
                     <option value="">Todos os status</option>
+                    @foreach (var s in Enum.GetValues<TicketStatus>())
+                    {
+                        <option value="@s" selected="@(Model.Status == s)">@s</option>
+                    }
                 </select>
             </div>
             <div class="col-md-3">
-                <input name="startDate" type="date" class="form-control" />
+                <input name="startDate" type="date" class="form-control" value="@Model.StartDate?.ToString("yyyy-MM-dd")" />
             </div>
             <div class="col-md-3">
-                <input name="endDate" type="date" class="form-control" />
+                <input name="endDate" type="date" class="form-control" value="@Model.EndDate?.ToString("yyyy-MM-dd")" />
             </div>
             <div class="col-md-3 d-grid">
                 <button type="submit" class="btn btn-outline-secondary">Filtrar</button>
@@ -59,7 +63,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var item in Model)
+                @if (!Model.Items.Any())
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Nenhum chamado encontrado.</td>
+                    </tr>
+                }
+                @foreach (var item in Model.Items)
                 {
                     <tr>
                         <td><strong>@item.Id</strong></td>
@@ -129,3 +139,26 @@
         </div>
     </div>
 </div>
+
+@if (Model.TotalPages > 1)
+{
+    <nav class="mt-3" aria-label="Paginação de chamados">
+        <ul class="pagination justify-content-center">
+            <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)"
+                   asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">Anterior</a>
+            </li>
+            @for (var p = 1; p <= Model.TotalPages; p++)
+            {
+                <li class="page-item @(p == Model.Page ? "active" : "")">
+                    <a class="page-link" asp-action="Index" asp-route-page="@p"
+                       asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">@p</a>
+                </li>
+            }
+            <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
+                <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)"
+                   asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+}
