@@ -1,0 +1,14 @@
+@page
+@model gestao_chamados.Areas.Identity.Pages.Account.LogoutModel
+@{
+    ViewData["Title"] = "Sair";
+}
+
+<div class="error-panel">
+    <h2>Encerrar sessão</h2>
+    <p class="text-muted">Deseja sair da sua conta?</p>
+    <form method="post" class="d-inline">
+        <button type="submit" class="btn btn-primary mt-3">Sair</button>
+    </form>
+    <a class="btn btn-outline-secondary mt-3" asp-controller="Home" asp-action="Index">Cancelar</a>
+</div>
