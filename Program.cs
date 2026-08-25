@@ -27,7 +27,7 @@ builder.Services
 
 var app = builder.Build();
 
-await DbInitializer.SeedAsync(app.Services);
+await DbInitializer.SeedAsync(app.Services, app.Environment, app.Configuration);
 
 // Configura o pipeline de requisições HTTP.
 if (!app.Environment.IsDevelopment())

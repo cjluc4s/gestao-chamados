@@ -1,6 +1,7 @@
-@model IEnumerable<gestao_chamados.Models.ApplicationUser>
+@model IEnumerable<gestao_chamados.Models.ViewModels.UserRoleViewModel>
 @{
     ViewData["Title"] = "Usuários";
+    var assignableRoles = ViewBag.AssignableRoles as string[] ?? Array.Empty<string>();
 }
 
 <h2 class="page-title">Usuários</h2>
@@ -14,6 +15,8 @@
                         <th>Nome</th>
                         <th>Email</th>
                         <th>Login</th>
+                        <th>Papel</th>
+                        <th>Alterar papel</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -23,6 +26,19 @@
                         <td>@user.FullName</td>
                         <td>@user.Email</td>
                         <td>@user.UserName</td>
+                        <td>@user.Role</td>
+                        <td>
+                            <form method="post" asp-action="ChangeRole" class="d-flex gap-2">
+                                <input type="hidden" name="userId" value="@user.Id" />
+                                <select name="role" class="form-select form-select-sm" style="width:auto">
+                                    @foreach (var r in assignableRoles)
+                                    {
+                                        <option value="@r" selected="@(r == user.Role)">@r</option>
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
+                            </form>
+                        </td>
                     </tr>
                 }
                 </tbody>

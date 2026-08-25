@@ -1,8 +1,11 @@
 bin/
 obj/
 .vs/
+.claude/
 *.user
 *.suo
 *.db
+*.db-shm
+*.db-wal
 appsettings.Development.json
 uploads/

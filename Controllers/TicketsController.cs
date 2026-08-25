@@ -527,6 +527,11 @@ public class TicketsController : Controller
             .ToListAsync();
     }
 
+    private static readonly HashSet<string> AllowedAttachmentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".zip", ".rar"
+    };
+
     private async Task SaveAttachmentsAsync(int ticketId, string userId, List<IFormFile> files)
     {
         var uploadsDir = Path.Combine(_env.ContentRootPath, "uploads", ticketId.ToString());
@@ -537,7 +542,11 @@ public class TicketsController : Controller
             if (file.Length <= 0 || file.Length > 10 * 1024 * 1024)
                 continue;
 
-            var storedName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var extension = Path.GetExtension(file.FileName);
+            if (string.IsNullOrEmpty(extension) || !AllowedAttachmentExtensions.Contains(extension))
+                continue;
+
+            var storedName = $"{Guid.NewGuid()}{extension}";
             var filePath = Path.Combine(uploadsDir, storedName);
 
             using (var stream = new FileStream(filePath, FileMode.Create))
@@ -573,10 +582,23 @@ public class TicketsController : Controller
         var currentUserId = _userManager.GetUserId(User);
         if (currentUserId is null) return null;
 
-        if (User.IsInRole(RoleNames.User))
+        if (User.IsInRole(RoleNames.Admin))
+        {
+            // sem filtro adicional: Admin enxerga todos os chamados
+        }
+        else if (User.IsInRole(RoleNames.User))
+        {
             query = query.Where(t => t.CreatedByUserId == currentUserId);
+        }
         else if (User.IsInRole(RoleNames.Agent))
+        {
             query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
+        }
+        else
+        {
+            // Usuário autenticado sem papel reconhecido: nega acesso por padrão.
+            query = query.Where(t => false);
+        }
 
         if (status.HasValue)
             query = query.Where(t => t.Status == status.Value);

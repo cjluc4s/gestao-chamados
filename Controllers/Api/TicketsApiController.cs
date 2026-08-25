@@ -44,13 +44,22 @@ public class TicketsController : ControllerBase
             return Unauthorized();
         }
 
-        if (User.IsInRole(RoleNames.User))
+        if (User.IsInRole(RoleNames.Admin))
+        {
+            // sem filtro adicional: Admin enxerga todos os chamados
+        }
+        else if (User.IsInRole(RoleNames.User))
         {
             query = query.Where(t => t.CreatedByUserId == currentUserId);
         }
         else if (User.IsInRole(RoleNames.Agent))
         {
             query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
+        }
+        else
+        {
+            // Usuário autenticado sem papel reconhecido: nega acesso por padrão.
+            query = query.Where(t => false);
         }
 
         return Ok(await query.OrderByDescending(t => t.CreatedAtUtc).ToListAsync());

@@ -19,18 +19,33 @@ function showToast(message) {
         document.body.appendChild(container);
     }
 
-    const toastId = "toast-" + Date.now();
-    const html = `
-        <div id="${toastId}" class="toast toast-notification show" role="alert">
-            <div class="toast-header">
-                <strong class="me-auto">🔔 Notificação</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body">${message}</div>
-        </div>`;
-    container.insertAdjacentHTML("beforeend", html);
+    const toastEl = document.createElement("div");
+    toastEl.className = "toast toast-notification show";
+    toastEl.setAttribute("role", "alert");
 
-    const toastEl = document.getElementById(toastId);
+    const header = document.createElement("div");
+    header.className = "toast-header";
+
+    const title = document.createElement("strong");
+    title.className = "me-auto";
+    title.textContent = "🔔 Notificação";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "btn-close";
+    closeBtn.setAttribute("data-bs-dismiss", "toast");
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement("div");
+    body.className = "toast-body";
+    body.textContent = message; // texto puro: nunca interpretado como HTML
+
+    toastEl.appendChild(header);
+    toastEl.appendChild(body);
+    container.appendChild(toastEl);
+
     setTimeout(function () {
         toastEl.classList.add("toast-hiding");
         setTimeout(function () { toastEl.remove(); }, 400);
