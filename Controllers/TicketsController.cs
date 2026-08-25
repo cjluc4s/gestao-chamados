@@ -412,6 +412,13 @@ public class TicketsController : Controller
             return NotFound();
         }
 
+        // CanAccessTicketAsync já garante, para Agente, que o chamado está
+        // sem atribuição ou já é dele — bloqueia "roubar" chamado de outro agente.
+        if (!await CanAccessTicketAsync(ticket))
+        {
+            return Forbid();
+        }
+
         var currentUserId = _userManager.GetUserId(User);
         if (currentUserId is null)
         {
