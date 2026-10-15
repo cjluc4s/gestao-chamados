@@ -41,6 +41,13 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Identity/Account/AccessDenied";
 });
 
+// Revalida o cookie a cada minuto: quando um Admin troca o papel de alguém,
+// a mudança vale quase imediatamente (o padrão é 30 minutos).
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+{
+    options.ValidationInterval = TimeSpan.FromMinutes(1);
+});
+
 var app = builder.Build();
 
 await DbInitializer.SeedAsync(app.Services, app.Environment, app.Configuration);

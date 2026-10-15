@@ -16,4 +16,5 @@ public class TicketDetailsViewModel
     public List<TicketCommentViewModel> Comments { get; set; } = [];
     public List<TicketStatusHistoryViewModel> History { get; set; } = [];
     public List<AttachmentViewModel> Attachments { get; set; } = [];
+    public List<TicketStatus> AllowedStatuses { get; set; } = [];
 }

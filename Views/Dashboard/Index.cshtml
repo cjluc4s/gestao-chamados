@@ -18,24 +18,8 @@
         <ul class="list-group list-group-flush">
             @foreach (var item in Model.ByPriority.OrderBy(x => x.Key))
             {
-                var dashPriCss = item.Key switch
-                {
-                    gestao_chamados.Models.TicketPriority.Low => "low",
-                    gestao_chamados.Models.TicketPriority.Medium => "medium",
-                    gestao_chamados.Models.TicketPriority.High => "high",
-                    gestao_chamados.Models.TicketPriority.Critical => "critical",
-                    _ => "low"
-                };
-                var dashPriLabel = item.Key switch
-                {
-                    gestao_chamados.Models.TicketPriority.Low => "Baixa",
-                    gestao_chamados.Models.TicketPriority.Medium => "Média",
-                    gestao_chamados.Models.TicketPriority.High => "Alta",
-                    gestao_chamados.Models.TicketPriority.Critical => "Crítica",
-                    _ => item.Key.ToString()
-                };
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span class="badge-priority @dashPriCss">@dashPriLabel</span>
+                    <span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span>
                     <strong>@item.Value</strong>
                 </li>
             }

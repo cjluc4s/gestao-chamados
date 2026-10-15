@@ -76,9 +76,22 @@ public class AdminController : Controller
         var currentRoles = await _userManager.GetRolesAsync(user);
         if (currentRoles.Count > 0)
         {
-            await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            if (!removeResult.Succeeded)
+            {
+                TempData["Notification"] = $"Não foi possível alterar o papel de {user.FullName}.";
+                return RedirectToAction(nameof(Users));
+            }
         }
-        await _userManager.AddToRoleAsync(user, role);
+
+        var addResult = await _userManager.AddToRoleAsync(user, role);
+        if (!addResult.Succeeded)
+        {
+            // Não deixa o usuário sem papel nenhum se a troca falhar no meio.
+            await _userManager.AddToRolesAsync(user, currentRoles);
+            TempData["Notification"] = $"Não foi possível alterar o papel de {user.FullName}.";
+            return RedirectToAction(nameof(Users));
+        }
 
         TempData["Notification"] = $"Papel de {user.FullName} atualizado para {role}.";
         return RedirectToAction(nameof(Users));

@@ -22,43 +22,29 @@ public class DashboardController : Controller
 
     public async Task<IActionResult> Index()
     {
-        var query = _context.Tickets.AsNoTracking().AsQueryable();
         var currentUserId = _userManager.GetUserId(User);
-
         if (currentUserId is null)
         {
             return Challenge();
         }
 
-        if (User.IsInRole(RoleNames.Admin))
-        {
-            // sem filtro adicional: Admin enxerga todos os chamados
-        }
-        else if (User.IsInRole(RoleNames.User))
-        {
-            query = query.Where(t => t.CreatedByUserId == currentUserId);
-        }
-        else if (User.IsInRole(RoleNames.Agent))
-        {
-            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
-        }
-        else
-        {
-            // Usuário autenticado sem papel reconhecido: nega acesso por padrão.
-            query = query.Where(t => false);
-        }
+        var query = TicketAccessPolicy.ApplyVisibility(
+            _context.Tickets.AsNoTracking(),
+            TicketAccessPolicy.ResolveRole(User),
+            currentUserId);
 
-        var data = await query.ToListAsync();
-
+        // Contagens agregadas no banco, em vez de carregar todos os chamados na memória.
+        var nowUtc = DateTime.UtcNow;
         var model = new DashboardViewModel
         {
-            TotalTickets = data.Count,
-            OpenTickets = data.Count(t => t.Status == TicketStatus.Open || t.Status == TicketStatus.InProgress || t.Status == TicketStatus.WaitingUser),
-            ResolvedTickets = data.Count(t => t.Status == TicketStatus.Resolved || t.Status == TicketStatus.Closed),
-            SlaBreachedTickets = data.Count(t => t.DueAtUtc.HasValue && t.DueAtUtc.Value < DateTime.UtcNow && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed),
-            ByPriority = data
+            TotalTickets = await query.CountAsync(),
+            OpenTickets = await query.CountAsync(t => t.Status == TicketStatus.Open || t.Status == TicketStatus.InProgress || t.Status == TicketStatus.WaitingUser),
+            ResolvedTickets = await query.CountAsync(t => t.Status == TicketStatus.Resolved || t.Status == TicketStatus.Closed),
+            SlaBreachedTickets = await query.CountAsync(t => t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed),
+            ByPriority = await query
                 .GroupBy(t => t.Priority)
-                .ToDictionary(g => g.Key, g => g.Count())
+                .Select(g => new { Priority = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Priority, x => x.Count)
         };
 
         return View(model);

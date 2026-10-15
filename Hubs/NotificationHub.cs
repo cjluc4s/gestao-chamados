@@ -1,3 +1,4 @@
+using gestao_chamados.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -14,12 +15,12 @@ public class NotificationHub : Hub
             await Groups.AddToGroupAsync(Context.ConnectionId, userId);
         }
 
-        if (Context.User?.IsInRole("Admin") == true)
+        if (Context.User?.IsInRole(RoleNames.Admin) == true)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, "Admins");
         }
 
-        if (Context.User?.IsInRole("Agent") == true)
+        if (Context.User?.IsInRole(RoleNames.Agent) == true)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, "Agents");
         }

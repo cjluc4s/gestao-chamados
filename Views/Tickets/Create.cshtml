@@ -25,6 +25,7 @@
                 <div class="col-md-6 mb-3">
                     <label asp-for="Priority" class="form-label"></label>
                     <select asp-for="Priority" class="form-select" asp-items="Html.GetEnumSelectList<TicketPriority>()"></select>
+                    <span asp-validation-for="Priority" class="text-danger"></span>
                 </div>
                 <div class="col-md-6 mb-3">
                     <label asp-for="CategoryId" class="form-label">Categoria</label>

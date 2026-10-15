@@ -18,24 +18,8 @@
                 <tbody>
                 @foreach (var item in Model.OrderBy(x => x.Key))
                 {
-                    var slaPriCss = item.Key switch
-                    {
-                        gestao_chamados.Models.TicketPriority.Low => "low",
-                        gestao_chamados.Models.TicketPriority.Medium => "medium",
-                        gestao_chamados.Models.TicketPriority.High => "high",
-                        gestao_chamados.Models.TicketPriority.Critical => "critical",
-                        _ => "low"
-                    };
-                    var slaPriLabel = item.Key switch
-                    {
-                        gestao_chamados.Models.TicketPriority.Low => "Baixa",
-                        gestao_chamados.Models.TicketPriority.Medium => "Média",
-                        gestao_chamados.Models.TicketPriority.High => "Alta",
-                        gestao_chamados.Models.TicketPriority.Critical => "Crítica",
-                        _ => item.Key.ToString()
-                    };
                     <tr>
-                        <td><span class="badge-priority @slaPriCss">@slaPriLabel</span></td>
+                        <td><span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span></td>
                         <td>@item.Value.TotalHours horas</td>
                     </tr>
                 }

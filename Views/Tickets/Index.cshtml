@@ -30,7 +30,7 @@
                     <option value="">Todos os status</option>
                     @foreach (var s in Enum.GetValues<TicketStatus>())
                     {
-                        <option value="@s" selected="@(Model.Status == s)">@s</option>
+                        <option value="@s" selected="@(Model.Status == s)">@s.Label()</option>
                     }
                 </select>
             </div>
@@ -75,50 +75,8 @@
                         <td><strong>@item.Id</strong></td>
                         <td>@item.Title</td>
                         <td>@item.Category</td>
-                        <td>
-                            @{
-                                var statusCss = item.Status switch
-                                {
-                                    TicketStatus.Open => "open",
-                                    TicketStatus.InProgress => "inprogress",
-                                    TicketStatus.WaitingUser => "waitinguser",
-                                    TicketStatus.Resolved => "resolved",
-                                    TicketStatus.Closed => "closed",
-                                    _ => "open"
-                                };
-                                var statusLabel = item.Status switch
-                                {
-                                    TicketStatus.Open => "Aberto",
-                                    TicketStatus.InProgress => "Em andamento",
-                                    TicketStatus.WaitingUser => "Aguardando",
-                                    TicketStatus.Resolved => "Resolvido",
-                                    TicketStatus.Closed => "Fechado",
-                                    _ => item.Status.ToString()
-                                };
-                            }
-                            <span class="badge-status @statusCss">@statusLabel</span>
-                        </td>
-                        <td>
-                            @{
-                                var priCss = item.Priority switch
-                                {
-                                    TicketPriority.Low => "low",
-                                    TicketPriority.Medium => "medium",
-                                    TicketPriority.High => "high",
-                                    TicketPriority.Critical => "critical",
-                                    _ => "low"
-                                };
-                                var priLabel = item.Priority switch
-                                {
-                                    TicketPriority.Low => "Baixa",
-                                    TicketPriority.Medium => "Média",
-                                    TicketPriority.High => "Alta",
-                                    TicketPriority.Critical => "Crítica",
-                                    _ => item.Priority.ToString()
-                                };
-                            }
-                            <span class="badge-priority @priCss">@priLabel</span>
-                        </td>
+                        <td><span class="badge-status @item.Status.CssClass()">@item.Status.Label()</span></td>
+                        <td><span class="badge-priority @item.Priority.CssClass()">@item.Priority.Label()</span></td>
                         <td>
                             @if (item.IsSlaBreached)
                             {
@@ -148,12 +106,25 @@
                 <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)"
                    asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">Anterior</a>
             </li>
-            @for (var p = 1; p <= Model.TotalPages; p++)
+            @{
+                // Janela de páginas ao redor da atual, sempre com a primeira e a última.
+                var firstInWindow = Math.Max(1, Model.Page - 2);
+                var lastInWindow = Math.Min(Model.TotalPages, Model.Page + 2);
+                var pages = new SortedSet<int> { 1, Model.TotalPages };
+                for (var p = firstInWindow; p <= lastInWindow; p++) pages.Add(p);
+                var previousPage = 0;
+            }
+            @foreach (var p in pages)
             {
+                if (previousPage > 0 && p - previousPage > 1)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
                 <li class="page-item @(p == Model.Page ? "active" : "")">
                     <a class="page-link" asp-action="Index" asp-route-page="@p"
                        asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">@p</a>
                 </li>
+                previousPage = p;
             }
             <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
                 <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)"

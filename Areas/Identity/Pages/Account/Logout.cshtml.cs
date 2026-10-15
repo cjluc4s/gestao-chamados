@@ -24,6 +24,6 @@ public class LogoutModel : PageModel
     {
         await _signInManager.SignOutAsync();
 
-        return returnUrl is not null ? LocalRedirect(returnUrl) : RedirectToAction("Index", "Home", new { area = "" });
+        return Url.IsLocalUrl(returnUrl) ? LocalRedirect(returnUrl) : RedirectToAction("Index", "Home", new { area = "" });
     }
 }

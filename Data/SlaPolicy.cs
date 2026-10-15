@@ -14,4 +14,10 @@ public static class SlaPolicy
             _ => TimeSpan.FromHours(24)
         };
     }
+
+    public static bool IsBreached(DateTime? dueAtUtc, TicketStatus status, DateTime nowUtc) =>
+        dueAtUtc.HasValue
+        && dueAtUtc.Value < nowUtc
+        && status != TicketStatus.Resolved
+        && status != TicketStatus.Closed;
 }

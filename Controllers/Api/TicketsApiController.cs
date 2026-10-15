@@ -1,3 +1,4 @@
+using gestao_chamados.Data;
 using gestao_chamados.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -13,10 +14,10 @@ public class TicketsApiController : ControllerBase
 {
     private const int MaxPageSize = 100;
 
-    private readonly Data.ApplicationDbContext _context;
+    private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public TicketsApiController(Data.ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+    public TicketsApiController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
     {
         _context = context;
         _userManager = userManager;
@@ -25,11 +26,25 @@ public class TicketsApiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAll(int page = 1, int pageSize = 20)
     {
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
 
-        var query = _context.Tickets
-            .AsNoTracking()
+        var query = TicketAccessPolicy.ApplyVisibility(
+                _context.Tickets.AsNoTracking(),
+                TicketAccessPolicy.ResolveRole(User),
+                currentUserId)
+            .OrderByDescending(t => t.CreatedAtUtc);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(t => new
             {
                 t.Id,
@@ -41,36 +56,7 @@ public class TicketsApiController : ControllerBase
                 t.CreatedByUserId,
                 t.AssignedToUserId
             })
-            .AsQueryable();
-
-        var currentUserId = _userManager.GetUserId(User);
-        if (currentUserId is null)
-        {
-            return Unauthorized();
-        }
-
-        if (User.IsInRole(RoleNames.Admin))
-        {
-            // sem filtro adicional: Admin enxerga todos os chamados
-        }
-        else if (User.IsInRole(RoleNames.User))
-        {
-            query = query.Where(t => t.CreatedByUserId == currentUserId);
-        }
-        else if (User.IsInRole(RoleNames.Agent))
-        {
-            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
-        }
-        else
-        {
-            // Usuário autenticado sem papel reconhecido: nega acesso por padrão.
-            query = query.Where(t => false);
-        }
-
-        query = query.OrderByDescending(t => t.CreatedAtUtc);
-
-        var totalCount = await query.CountAsync();
-        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            .ToListAsync();
 
         return Ok(new
         {
@@ -85,6 +71,12 @@ public class TicketsApiController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Unauthorized();
+        }
+
         var ticket = await _context.Tickets
             .AsNoTracking()
             .Where(t => t.Id == id)
@@ -107,19 +99,9 @@ public class TicketsApiController : ControllerBase
             return NotFound();
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        if (currentUserId is null)
-        {
-            return Unauthorized();
-        }
+        var canAccess = TicketAccessPolicy.CanAccess(
+            TicketAccessPolicy.ResolveRole(User), currentUserId, ticket.CreatedByUserId, ticket.AssignedToUserId);
 
-        if (User.IsInRole(RoleNames.Admin)
-            || (User.IsInRole(RoleNames.User) && ticket.CreatedByUserId == currentUserId)
-            || (User.IsInRole(RoleNames.Agent) && (ticket.AssignedToUserId == currentUserId || ticket.AssignedToUserId == null)))
-        {
-            return Ok(ticket);
-        }
-
-        return Forbid();
+        return canAccess ? Ok(ticket) : Forbid();
     }
 }

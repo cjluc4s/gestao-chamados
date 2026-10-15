@@ -282,6 +282,13 @@ body {
   line-height: 1.5;
 }
 
+/* Preserva as quebras de linha digitadas pelo usuário. */
+.ticket-description,
+.comment-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ===== Timeline (Histórico) ===== */
 .timeline-item {
   border-left: 3px solid #dbeafe;

@@ -60,7 +60,11 @@ public class RegisterModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
     {
-        returnUrl ??= Url.Content("~/");
+        // LocalRedirect lança exceção (HTTP 500) para URLs externas; descarta-as antes.
+        if (!Url.IsLocalUrl(returnUrl))
+        {
+            returnUrl = Url.Content("~/");
+        }
         ReturnUrl = returnUrl;
 
         if (!ModelState.IsValid)

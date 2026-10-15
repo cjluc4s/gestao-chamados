@@ -1,6 +1,7 @@
 using gestao_chamados.Models;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace gestao_chamados.Data;
 
@@ -49,5 +50,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(a => a.UploadedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // O SQLite não guarda o "Kind" do DateTime: sem isso, as datas voltam como
+        // Unspecified e a API serializa "...Utc" sem o sufixo "Z".
+        var utcConverter = new ValueConverter<DateTime, DateTime>(
+            v => v.Kind == DateTimeKind.Utc ? v : v.ToUniversalTime(),
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        foreach (var property in builder.Model.GetEntityTypes().SelectMany(e => e.GetProperties()))
+        {
+            if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+            {
+                property.SetValueConverter(utcConverter);
+            }
+        }
     }
 }

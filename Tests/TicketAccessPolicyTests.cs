@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using gestao_chamados.Data;
 using gestao_chamados.Models;
 
@@ -60,5 +61,48 @@ public class TicketAccessPolicyTests
     {
         Assert.False(TicketAccessPolicy.CanAccess(RoleNames.User, null, CreatorId, null));
         Assert.False(TicketAccessPolicy.CanAccess(RoleNames.Agent, null, CreatorId, null));
+    }
+
+    [Theory]
+    [InlineData(new[] { RoleNames.Admin, RoleNames.Agent }, RoleNames.Admin)]
+    [InlineData(new[] { RoleNames.Agent, RoleNames.User }, RoleNames.User)]
+    [InlineData(new[] { RoleNames.Agent }, RoleNames.Agent)]
+    [InlineData(new string[0], "")]
+    public void ResolveRole_FollowsPrecedence(string[] roles, string expected)
+    {
+        var claims = roles.Select(r => new Claim(ClaimTypes.Role, r));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+
+        Assert.Equal(expected, TicketAccessPolicy.ResolveRole(principal));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Admin, "admin-1")]
+    [InlineData(RoleNames.User, CreatorId)]
+    [InlineData(RoleNames.User, "other-user")]
+    [InlineData(RoleNames.Agent, AgentId)]
+    [InlineData(RoleNames.Agent, OtherAgentId)]
+    [InlineData("", "some-user")]
+    public void ApplyVisibility_MatchesCanAccess(string role, string currentUserId)
+    {
+        // O filtro de listagem (telas, dashboard, API) e a checagem individual
+        // (detalhes, download, ações) precisam concordar sempre.
+        var tickets = new List<Ticket>
+        {
+            new() { Id = 1, CreatedByUserId = CreatorId, AssignedToUserId = null },
+            new() { Id = 2, CreatedByUserId = CreatorId, AssignedToUserId = AgentId },
+            new() { Id = 3, CreatedByUserId = "other-user", AssignedToUserId = OtherAgentId },
+            new() { Id = 4, CreatedByUserId = "other-user", AssignedToUserId = null }
+        };
+
+        var visible = TicketAccessPolicy.ApplyVisibility(tickets.AsQueryable(), role, currentUserId)
+            .Select(t => t.Id)
+            .ToHashSet();
+
+        foreach (var ticket in tickets)
+        {
+            var canAccess = TicketAccessPolicy.CanAccess(role, currentUserId, ticket.CreatedByUserId, ticket.AssignedToUserId);
+            Assert.Equal(canAccess, visible.Contains(ticket.Id));
+        }
     }
 }

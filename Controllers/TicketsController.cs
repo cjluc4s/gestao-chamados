@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -19,6 +20,14 @@ namespace gestao_chamados.Controllers;
 [Authorize]
 public class TicketsController : Controller
 {
+    private const int PageSize = 20;
+    private const int MaxCommentLength = 2000;
+    private const int MaxFileNameLength = 200;
+    private const string UploadsFolder = "uploads";
+
+    private static readonly CultureInfo PtBr = CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly FileExtensionContentTypeProvider ContentTypeProvider = new();
+
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWebHostEnvironment _env;
@@ -32,16 +41,16 @@ public class TicketsController : Controller
         _hub = hub;
     }
 
-    private const int PageSize = 20;
-
     public async Task<IActionResult> Index(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate, int page = 1)
     {
         var query = BuildFilteredQuery(status, userId, startDate, endDate);
         if (query is null) return Challenge();
 
-        page = Math.Max(1, page);
         var totalCount = await query.CountAsync();
-        var items = await ProjectToListItems(query.Skip((page - 1) * PageSize).Take(PageSize)).ToListAsync();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+        page = Math.Clamp(page, 1, totalPages);
+
+        var items = await ProjectToListItems(query.Skip((page - 1) * PageSize).Take(PageSize), DateTime.UtcNow).ToListAsync();
 
         var model = new PagedTicketListViewModel
         {
@@ -61,7 +70,7 @@ public class TicketsController : Controller
     {
         var query = BuildFilteredQuery(status, userId, startDate, endDate);
         if (query is null) return Challenge();
-        var tickets = await ProjectToListItems(query).ToListAsync();
+        var tickets = await ProjectToListItems(query, DateTime.UtcNow).ToListAsync();
 
         var sb = new StringBuilder();
         sb.AppendLine("ID;Título;Categoria;Status;Prioridade;Criado por;Atribuído para;Criado em;Limite SLA;SLA");
@@ -70,14 +79,14 @@ public class TicketsController : Controller
         {
             sb.AppendLine(string.Join(";",
                 t.Id,
-                EscapeCsv(t.Title),
-                EscapeCsv(t.Category),
-                StatusLabel(t.Status),
-                PriorityLabel(t.Priority),
-                EscapeCsv(t.CreatedBy),
-                EscapeCsv(t.AssignedTo ?? "—"),
-                t.CreatedAtUtc.ToLocalTime().ToString("g", CultureInfo.GetCultureInfo("pt-BR")),
-                t.DueAtUtc?.ToLocalTime().ToString("g", CultureInfo.GetCultureInfo("pt-BR")) ?? "—",
+                CsvFormatter.Escape(t.Title),
+                CsvFormatter.Escape(t.Category),
+                t.Status.Label(),
+                t.Priority.Label(),
+                CsvFormatter.Escape(t.CreatedBy),
+                CsvFormatter.Escape(t.AssignedTo ?? "—"),
+                t.CreatedAtUtc.ToLocalTime().ToString("g", PtBr),
+                t.DueAtUtc?.ToLocalTime().ToString("g", PtBr) ?? "—",
                 t.IsSlaBreached ? "Vencido" : "OK"
             ));
         }
@@ -90,7 +99,7 @@ public class TicketsController : Controller
     {
         var query = BuildFilteredQuery(status, userId, startDate, endDate);
         if (query is null) return Challenge();
-        var tickets = await ProjectToListItems(query).ToListAsync();
+        var tickets = await ProjectToListItems(query, DateTime.UtcNow).ToListAsync();
 
         var document = Document.Create(container =>
         {
@@ -134,20 +143,21 @@ public class TicketsController : Controller
                         }
                     });
 
-                    foreach (var t in tickets)
+                    for (var i = 0; i < tickets.Count; i++)
                     {
-                        var bg = tickets.IndexOf(t) % 2 == 0 ? Colors.White : Colors.Grey.Lighten4;
+                        var t = tickets[i];
+                        var bg = i % 2 == 0 ? Colors.White : Colors.Grey.Lighten4;
                         var cells = new[]
                         {
                             t.Id.ToString(),
                             t.Title,
                             t.Category,
-                            StatusLabel(t.Status),
-                            PriorityLabel(t.Priority),
+                            t.Status.Label(),
+                            t.Priority.Label(),
                             t.CreatedBy,
                             t.AssignedTo ?? "—",
                             t.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yy HH:mm"),
-                            t.IsSlaBreached ? "⚠ Vencido" : "✓ OK"
+                            t.IsSlaBreached ? "Vencido" : "OK"
                         };
                         foreach (var cell in cells)
                         {
@@ -174,6 +184,16 @@ public class TicketsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(TicketCreateViewModel model)
     {
+        if (!Enum.IsDefined(model.Priority))
+        {
+            ModelState.AddModelError(nameof(model.Priority), "Selecione uma prioridade válida.");
+        }
+
+        if (!await _context.Categories.AnyAsync(c => c.Id == model.CategoryId))
+        {
+            ModelState.AddModelError(nameof(model.CategoryId), "Selecione uma categoria válida.");
+        }
+
         if (!ModelState.IsValid)
         {
             model.Categories = await GetCategorySelectListAsync();
@@ -186,48 +206,52 @@ public class TicketsController : Controller
             return Challenge();
         }
 
-        var due = DateTime.UtcNow.Add(SlaPolicy.GetDeadline(model.Priority));
-
+        var now = DateTime.UtcNow;
         var ticket = new Ticket
         {
-            Title = model.Title,
-            Description = model.Description,
+            Title = model.Title.Trim(),
+            Description = model.Description.Trim(),
             Priority = model.Priority,
             CategoryId = model.CategoryId,
             Status = TicketStatus.Open,
             CreatedByUserId = currentUserId,
-            CreatedAtUtc = DateTime.UtcNow,
-            DueAtUtc = due
+            CreatedAtUtc = now,
+            DueAtUtc = now.Add(SlaPolicy.GetDeadline(model.Priority))
         };
+
+        // Chamado e histórico inicial no mesmo SaveChanges: ou grava os dois, ou nenhum.
+        ticket.StatusHistory.Add(new TicketStatusHistory
+        {
+            FromStatus = null,
+            ToStatus = TicketStatus.Open,
+            ChangedByUserId = currentUserId,
+            ChangedAtUtc = now
+        });
 
         _context.Tickets.Add(ticket);
         await _context.SaveChangesAsync();
 
+        var notification = "Chamado criado com sucesso.";
         if (model.Files is { Count: > 0 })
         {
-            await SaveAttachmentsAsync(ticket.Id, currentUserId, model.Files);
+            var (_, rejected) = await SaveAttachmentsAsync(ticket.Id, currentUserId, model.Files);
+            if (rejected > 0)
+            {
+                notification += " " + RejectedFilesMessage(rejected);
+            }
         }
 
-        _context.TicketStatusHistory.Add(new TicketStatusHistory
-        {
-            TicketId = ticket.Id,
-            FromStatus = null,
-            ToStatus = TicketStatus.Open,
-            ChangedByUserId = currentUserId,
-            ChangedAtUtc = DateTime.UtcNow
-        });
-
-        await _context.SaveChangesAsync();
-
-        TempData["Notification"] = "Chamado criado com sucesso.";
-        await _hub.Clients.Group("Agents").SendAsync("ReceiveNotification", $"Novo chamado #{ticket.Id}: {ticket.Title}");
-        await _hub.Clients.Group("Admins").SendAsync("ReceiveNotification", $"Novo chamado #{ticket.Id}: {ticket.Title}");
+        TempData["Notification"] = notification;
+        await NotifyAsync("Agents", $"Novo chamado #{ticket.Id}: {ticket.Title}");
+        await NotifyAsync("Admins", $"Novo chamado #{ticket.Id}: {ticket.Title}");
         return RedirectToAction(nameof(Details), new { id = ticket.Id });
     }
 
     public async Task<IActionResult> Details(int id)
     {
         var ticket = await _context.Tickets
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(t => t.Category)
             .Include(t => t.CreatedByUser)
             .Include(t => t.AssignedToUser)
@@ -244,25 +268,29 @@ public class TicketsController : Controller
             return NotFound();
         }
 
-        if (!await CanAccessTicketAsync(ticket))
+        if (!CanAccessTicket(ticket))
         {
             return Forbid();
         }
 
-        var commentAuthorIds = ticket.Comments
+        var commentAuthors = ticket.Comments
             .Where(c => c.AuthorUser is not null)
             .Select(c => c.AuthorUser!)
             .DistinctBy(u => u.Id)
             .ToList();
 
-        var agentIds = new HashSet<string>();
-        foreach (var user in commentAuthorIds)
+        // Admin e Atendente respondem pela equipe de suporte.
+        var staffIds = new HashSet<string>();
+        foreach (var user in commentAuthors)
         {
-            if (await _userManager.IsInRoleAsync(user, RoleNames.Agent))
+            if (await _userManager.IsInRoleAsync(user, RoleNames.Agent) || await _userManager.IsInRoleAsync(user, RoleNames.Admin))
             {
-                agentIds.Add(user.Id);
+                staffIds.Add(user.Id);
             }
         }
+
+        var isAdmin = User.IsInRole(RoleNames.Admin);
+        var canChangeStatus = isAdmin || User.IsInRole(RoleNames.Agent);
 
         var model = new TicketDetailsViewModel
         {
@@ -276,13 +304,16 @@ public class TicketsController : Controller
             AssignedTo = ticket.AssignedToUser?.FullName,
             CreatedAtUtc = ticket.CreatedAtUtc,
             DueAtUtc = ticket.DueAtUtc,
-            IsSlaBreached = ticket.DueAtUtc.HasValue && ticket.DueAtUtc.Value < DateTime.UtcNow && ticket.Status != TicketStatus.Resolved && ticket.Status != TicketStatus.Closed,
+            IsSlaBreached = SlaPolicy.IsBreached(ticket.DueAtUtc, ticket.Status, DateTime.UtcNow),
+            AllowedStatuses = canChangeStatus
+                ? TicketWorkflowPolicy.GetAllowedTransitions(ticket.Status, isAdmin).ToList()
+                : [],
             Comments = ticket.Comments
                 .OrderBy(c => c.CreatedAtUtc)
                 .Select(c => new TicketCommentViewModel
                 {
                     Author = c.AuthorUser?.FullName ?? c.AuthorUserId,
-                    IsAgent = c.AuthorUser is not null && agentIds.Contains(c.AuthorUser.Id),
+                    IsStaff = staffIds.Contains(c.AuthorUserId),
                     Message = c.Message,
                     CreatedAtUtc = c.CreatedAtUtc
                 })
@@ -325,7 +356,7 @@ public class TicketsController : Controller
             return NotFound();
         }
 
-        if (!await CanAccessTicketAsync(ticket) && !User.IsInRole(RoleNames.Admin))
+        if (!CanAccessTicket(ticket))
         {
             return Forbid();
         }
@@ -341,9 +372,24 @@ public class TicketsController : Controller
             return Challenge();
         }
 
+        var isAdmin = User.IsInRole(RoleNames.Admin);
+        if (!TicketWorkflowPolicy.CanTransition(ticket.Status, status, isAdmin))
+        {
+            TempData["Notification"] = $"Não é possível mudar o status de \"{ticket.Status.Label()}\" para \"{status.Label()}\".";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var now = DateTime.UtcNow;
         var previous = ticket.Status;
         ticket.Status = status;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        ticket.UpdatedAtUtc = now;
+
+        // Atendente que movimenta um chamado sem dono passa a ser o responsável,
+        // senão ele fica "Em andamento" sem ninguém atribuído.
+        if (ticket.AssignedToUserId is null && TicketAccessPolicy.ResolveRole(User) == RoleNames.Agent)
+        {
+            ticket.AssignedToUserId = currentUserId;
+        }
 
         _context.TicketStatusHistory.Add(new TicketStatusHistory
         {
@@ -351,21 +397,17 @@ public class TicketsController : Controller
             FromStatus = previous,
             ToStatus = status,
             ChangedByUserId = currentUserId,
-            ChangedAtUtc = DateTime.UtcNow
+            ChangedAtUtc = now
         });
 
         await _context.SaveChangesAsync();
 
-        var statusLabel = status switch
+        var message = $"Chamado #{id} alterado para: {status.Label()}";
+        await NotifyAsync(ticket.CreatedByUserId, message);
+        if (ticket.AssignedToUserId is not null && ticket.AssignedToUserId != currentUserId)
         {
-            TicketStatus.Open => "Aberto",
-            TicketStatus.InProgress => "Em andamento",
-            TicketStatus.WaitingUser => "Aguardando usuário",
-            TicketStatus.Resolved => "Resolvido",
-            TicketStatus.Closed => "Fechado",
-            _ => status.ToString()
-        };
-        await _hub.Clients.Group(ticket.CreatedByUserId).SendAsync("ReceiveNotification", $"Chamado #{id} alterado para: {statusLabel}");
+            await NotifyAsync(ticket.AssignedToUserId, message);
+        }
 
         TempData["Notification"] = "Status atualizado.";
         return RedirectToAction(nameof(Details), new { id });
@@ -373,7 +415,7 @@ public class TicketsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> AddComment(int id, string message)
+    public async Task<IActionResult> AddComment(int id, string? message)
     {
         var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
         if (ticket is null)
@@ -381,9 +423,9 @@ public class TicketsController : Controller
             return NotFound();
         }
 
-        if (!await CanAccessTicketAsync(ticket) || string.IsNullOrWhiteSpace(message))
+        if (!CanAccessTicket(ticket))
         {
-            return RedirectToAction(nameof(Details), new { id });
+            return Forbid();
         }
 
         var currentUserId = _userManager.GetUserId(User);
@@ -392,26 +434,59 @@ public class TicketsController : Controller
             return Challenge();
         }
 
+        message = message?.Trim();
+        if (string.IsNullOrEmpty(message))
+        {
+            TempData["Notification"] = "Digite uma mensagem antes de responder.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        if (message.Length > MaxCommentLength)
+        {
+            TempData["Notification"] = $"A mensagem pode ter no máximo {MaxCommentLength} caracteres.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var now = DateTime.UtcNow;
         _context.TicketComments.Add(new TicketComment
         {
             TicketId = id,
-            Message = message.Trim(),
+            Message = message,
             AuthorUserId = currentUserId,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = now
         });
 
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        ticket.UpdatedAtUtc = now;
+
+        // Resposta do solicitante encerra a espera: o chamado volta para o atendimento.
+        if (ticket.Status == TicketStatus.WaitingUser && ticket.CreatedByUserId == currentUserId)
+        {
+            ticket.Status = TicketStatus.InProgress;
+            _context.TicketStatusHistory.Add(new TicketStatusHistory
+            {
+                TicketId = id,
+                FromStatus = TicketStatus.WaitingUser,
+                ToStatus = TicketStatus.InProgress,
+                ChangedByUserId = currentUserId,
+                ChangedAtUtc = now
+            });
+        }
 
         await _context.SaveChangesAsync();
 
         var authorName = (await _userManager.GetUserAsync(User))?.FullName ?? "Alguém";
+        var notification = $"{authorName} comentou no chamado #{id}";
         if (ticket.CreatedByUserId != currentUserId)
         {
-            await _hub.Clients.Group(ticket.CreatedByUserId).SendAsync("ReceiveNotification", $"{authorName} comentou no chamado #{id}");
+            await NotifyAsync(ticket.CreatedByUserId, notification);
         }
-        if (ticket.AssignedToUserId is not null && ticket.AssignedToUserId != currentUserId)
+        if (ticket.AssignedToUserId is null)
         {
-            await _hub.Clients.Group(ticket.AssignedToUserId).SendAsync("ReceiveNotification", $"{authorName} comentou no chamado #{id}");
+            await NotifyAsync("Agents", notification);
+        }
+        else if (ticket.AssignedToUserId != currentUserId)
+        {
+            await NotifyAsync(ticket.AssignedToUserId, notification);
         }
 
         TempData["Notification"] = "Interação registrada.";
@@ -424,15 +499,15 @@ public class TicketsController : Controller
     [Authorize(Roles = RoleNames.Agent)]
     public async Task<IActionResult> AssignToMe(int id)
     {
-        var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        var ticket = await _context.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
         if (ticket is null)
         {
             return NotFound();
         }
 
-        // CanAccessTicketAsync já garante, para Agente, que o chamado está
+        // CanAccessTicket já garante, para Agente, que o chamado está
         // sem atribuição ou já é dele — bloqueia "roubar" chamado de outro agente.
-        if (!await CanAccessTicketAsync(ticket))
+        if (!CanAccessTicket(ticket))
         {
             return Forbid();
         }
@@ -443,12 +518,27 @@ public class TicketsController : Controller
             return Challenge();
         }
 
-        ticket.AssignedToUserId = currentUserId;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        if (ticket.AssignedToUserId == currentUserId)
+        {
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        // Update condicional e atômico: se dois atendentes clicarem ao mesmo
+        // tempo, só o primeiro assume o chamado.
+        var updated = await _context.Tickets
+            .Where(t => t.Id == id && t.AssignedToUserId == null)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.AssignedToUserId, currentUserId)
+                .SetProperty(t => t.UpdatedAtUtc, DateTime.UtcNow));
+
+        if (updated == 0)
+        {
+            TempData["Notification"] = "Este chamado acabou de ser assumido por outro atendente.";
+            return RedirectToAction(nameof(Index));
+        }
 
         var agentName = (await _userManager.GetUserAsync(User))?.FullName ?? "Um atendente";
-        await _hub.Clients.Group(ticket.CreatedByUserId).SendAsync("ReceiveNotification", $"{agentName} assumiu o chamado #{id}");
+        await NotifyAsync(ticket.CreatedByUserId, $"{agentName} assumiu o chamado #{id}");
 
         TempData["Notification"] = "Chamado atribuído a você.";
         return RedirectToAction(nameof(Details), new { id });
@@ -457,6 +547,7 @@ public class TicketsController : Controller
     public async Task<IActionResult> Download(int id)
     {
         var attachment = await _context.Attachments
+            .AsNoTracking()
             .Include(a => a.Ticket)
             .FirstOrDefaultAsync(a => a.Id == id);
 
@@ -465,31 +556,32 @@ public class TicketsController : Controller
             return NotFound();
         }
 
-        if (!await CanAccessTicketAsync(attachment.Ticket))
+        if (!CanAccessTicket(attachment.Ticket))
         {
             return Forbid();
         }
 
-        if (!System.IO.File.Exists(attachment.StoredPath))
+        var fullPath = ResolveStoragePath(attachment.StoredPath);
+        if (!System.IO.File.Exists(fullPath))
         {
             return NotFound();
         }
 
-        var bytes = await System.IO.File.ReadAllBytesAsync(attachment.StoredPath);
-        return File(bytes, attachment.ContentType, attachment.FileName);
+        // Content-Type derivado da extensão (já validada), nunca do valor enviado pelo navegador.
+        return PhysicalFile(fullPath, GetContentType(attachment.FileName), attachment.FileName);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UploadToTicket(int id, List<IFormFile> files)
     {
-        var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        var ticket = await _context.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
         if (ticket is null)
         {
             return NotFound();
         }
 
-        if (!await CanAccessTicketAsync(ticket))
+        if (!CanAccessTicket(ticket))
         {
             return Forbid();
         }
@@ -500,25 +592,33 @@ public class TicketsController : Controller
             return Challenge();
         }
 
-        if (files is { Count: > 0 })
+        if (files is not { Count: > 0 })
         {
-            await SaveAttachmentsAsync(ticket.Id, currentUserId, files);
-            TempData["Notification"] = "Anexo(s) enviado(s) com sucesso.";
+            TempData["Notification"] = "Selecione ao menos um arquivo.";
+            return RedirectToAction(nameof(Details), new { id });
         }
+
+        var (saved, rejected) = await SaveAttachmentsAsync(ticket.Id, currentUserId, files);
+
+        var notification = saved > 0 ? $"{saved} anexo(s) enviado(s) com sucesso." : "Nenhum anexo foi enviado.";
+        if (rejected > 0)
+        {
+            notification += " " + RejectedFilesMessage(rejected);
+        }
+        TempData["Notification"] = notification;
 
         return RedirectToAction(nameof(Details), new { id });
     }
 
-    private Task<bool> CanAccessTicketAsync(Ticket ticket)
-    {
-        var currentUserId = _userManager.GetUserId(User);
-        var role = User.IsInRole(RoleNames.Admin) ? RoleNames.Admin
-            : User.IsInRole(RoleNames.User) ? RoleNames.User
-            : User.IsInRole(RoleNames.Agent) ? RoleNames.Agent
-            : string.Empty;
+    private bool CanAccessTicket(Ticket ticket) =>
+        TicketAccessPolicy.CanAccess(
+            TicketAccessPolicy.ResolveRole(User),
+            _userManager.GetUserId(User),
+            ticket.CreatedByUserId,
+            ticket.AssignedToUserId);
 
-        return Task.FromResult(TicketAccessPolicy.CanAccess(role, currentUserId, ticket.CreatedByUserId, ticket.AssignedToUserId));
-    }
+    private Task NotifyAsync(string group, string message) =>
+        _hub.Clients.Group(group).SendAsync("ReceiveNotification", message);
 
     private async Task<TicketCreateViewModel> BuildCreateViewModelAsync()
     {
@@ -537,20 +637,27 @@ public class TicketsController : Controller
             .ToListAsync();
     }
 
-    private async Task SaveAttachmentsAsync(int ticketId, string userId, List<IFormFile> files)
+    private async Task<(int Saved, int Rejected)> SaveAttachmentsAsync(int ticketId, string userId, List<IFormFile> files)
     {
-        var uploadsDir = Path.Combine(_env.ContentRootPath, "uploads", ticketId.ToString());
-        Directory.CreateDirectory(uploadsDir);
+        // Caminho gravado relativo ao ContentRoot, para o banco continuar válido
+        // se a aplicação for movida de pasta/servidor.
+        var relativeDir = Path.Combine(UploadsFolder, ticketId.ToString());
+        var absoluteDir = Path.Combine(_env.ContentRootPath, relativeDir);
 
+        int saved = 0, rejected = 0;
         foreach (var file in files)
         {
-            if (!AttachmentPolicy.IsAllowed(file.FileName, file.Length))
+            var fileName = SanitizeFileName(file.FileName);
+            if (!AttachmentPolicy.IsAllowed(fileName, file.Length))
+            {
+                rejected++;
                 continue;
+            }
 
-            var storedName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var filePath = Path.Combine(uploadsDir, storedName);
+            Directory.CreateDirectory(absoluteDir);
+            var storedName = $"{Guid.NewGuid()}{Path.GetExtension(fileName).ToLowerInvariant()}";
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            await using (var stream = new FileStream(Path.Combine(absoluteDir, storedName), FileMode.CreateNew))
             {
                 await file.CopyToAsync(stream);
             }
@@ -558,71 +665,84 @@ public class TicketsController : Controller
             _context.Attachments.Add(new Attachment
             {
                 TicketId = ticketId,
-                FileName = file.FileName,
-                StoredPath = filePath,
-                ContentType = file.ContentType,
+                FileName = fileName,
+                StoredPath = Path.Combine(relativeDir, storedName),
+                ContentType = GetContentType(fileName),
                 SizeInBytes = file.Length,
                 UploadedByUserId = userId,
                 UploadedAtUtc = DateTime.UtcNow
             });
+            saved++;
         }
 
-        await _context.SaveChangesAsync();
+        if (saved > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+
+        return (saved, rejected);
     }
+
+    private string ResolveStoragePath(string storedPath) =>
+        Path.IsPathRooted(storedPath) ? storedPath : Path.Combine(_env.ContentRootPath, storedPath);
+
+    private static string SanitizeFileName(string fileName)
+    {
+        // Alguns navegadores enviam o caminho completo ("C:\pasta\arquivo.pdf").
+        var name = Path.GetFileName(fileName.Replace('\\', '/'));
+        if (name.Length <= MaxFileNameLength)
+        {
+            return name;
+        }
+
+        var extension = Path.GetExtension(name);
+        return extension.Length < MaxFileNameLength
+            ? name[..(MaxFileNameLength - extension.Length)] + extension
+            : name[..MaxFileNameLength];
+    }
+
+    private static string GetContentType(string fileName) =>
+        ContentTypeProvider.TryGetContentType(fileName, out var contentType) ? contentType : "application/octet-stream";
+
+    private static string RejectedFilesMessage(int rejected) =>
+        $"{rejected} arquivo(s) ignorado(s): formato não permitido ou acima de {AttachmentPolicy.MaxSizeInBytes / (1024 * 1024)} MB.";
 
     private IQueryable<Ticket>? BuildFilteredQuery(
         TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate)
     {
-        var query = _context.Tickets
-            .AsNoTracking()
-            .Include(t => t.Category)
-            .Include(t => t.CreatedByUser)
-            .Include(t => t.AssignedToUser)
-            .AsQueryable();
-
         var currentUserId = _userManager.GetUserId(User);
         if (currentUserId is null) return null;
 
-        if (User.IsInRole(RoleNames.Admin))
-        {
-            // sem filtro adicional: Admin enxerga todos os chamados
-        }
-        else if (User.IsInRole(RoleNames.User))
-        {
-            query = query.Where(t => t.CreatedByUserId == currentUserId);
-        }
-        else if (User.IsInRole(RoleNames.Agent))
-        {
-            query = query.Where(t => t.AssignedToUserId == currentUserId || t.AssignedToUserId == null);
-        }
-        else
-        {
-            // Usuário autenticado sem papel reconhecido: nega acesso por padrão.
-            query = query.Where(t => false);
-        }
+        var role = TicketAccessPolicy.ResolveRole(User);
+        var query = TicketAccessPolicy.ApplyVisibility(_context.Tickets.AsNoTracking(), role, currentUserId);
 
         if (status.HasValue)
             query = query.Where(t => t.Status == status.Value);
 
-        if (!string.IsNullOrWhiteSpace(userId) && User.IsInRole(RoleNames.Admin))
+        if (!string.IsNullOrWhiteSpace(userId) && role == RoleNames.Admin)
             query = query.Where(t => t.CreatedByUserId == userId || t.AssignedToUserId == userId);
 
+        // As datas do filtro são dias no fuso do servidor (o mesmo usado para exibir),
+        // então os limites são convertidos para UTC antes de comparar.
         if (startDate.HasValue)
         {
-            var startUtc = DateTime.SpecifyKind(startDate.Value.Date, DateTimeKind.Utc);
+            var startUtc = LocalDateToUtc(startDate.Value);
             query = query.Where(t => t.CreatedAtUtc >= startUtc);
         }
 
-        if (endDate.HasValue)
+        if (endDate.HasValue && endDate.Value.Date < DateTime.MaxValue.Date)
         {
-            var endUtc = DateTime.SpecifyKind(endDate.Value.Date.AddDays(1), DateTimeKind.Utc);
+            var endUtc = LocalDateToUtc(endDate.Value.AddDays(1));
             query = query.Where(t => t.CreatedAtUtc < endUtc);
         }
 
         return query.OrderByDescending(t => t.CreatedAtUtc);
     }
 
-    private static IQueryable<TicketListItemViewModel> ProjectToListItems(IQueryable<Ticket> query) =>
+    private static DateTime LocalDateToUtc(DateTime date) =>
+        DateTime.SpecifyKind(date.Date, DateTimeKind.Local).ToUniversalTime();
+
+    private static IQueryable<TicketListItemViewModel> ProjectToListItems(IQueryable<Ticket> query, DateTime nowUtc) =>
         query.Select(t => new TicketListItemViewModel
         {
             Id = t.Id,
@@ -634,30 +754,7 @@ public class TicketsController : Controller
             AssignedTo = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
             CreatedAtUtc = t.CreatedAtUtc,
             DueAtUtc = t.DueAtUtc,
-            IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < DateTime.UtcNow
+            IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc
                 && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed
         });
-
-    private static string StatusLabel(TicketStatus s) => s switch
-    {
-        TicketStatus.Open => "Aberto",
-        TicketStatus.InProgress => "Em andamento",
-        TicketStatus.WaitingUser => "Aguardando",
-        TicketStatus.Resolved => "Resolvido",
-        TicketStatus.Closed => "Fechado",
-        _ => s.ToString()
-    };
-
-    private static string PriorityLabel(TicketPriority p) => p switch
-    {
-        TicketPriority.Low => "Baixa",
-        TicketPriority.Medium => "Média",
-        TicketPriority.High => "Alta",
-        TicketPriority.Critical => "Crítica",
-        _ => p.ToString()
-    };
-
-    private static string EscapeCsv(string value) =>
-        value.Contains(';') || value.Contains('"') || value.Contains('\n')
-            ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
 }

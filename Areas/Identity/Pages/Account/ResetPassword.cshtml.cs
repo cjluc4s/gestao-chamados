@@ -51,10 +51,21 @@ public class ResetPasswordModel : PageModel
             return BadRequest("É necessário informar um código de redefinição de senha válido.");
         }
 
+        string decodedCode;
+        try
+        {
+            decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code));
+        }
+        catch (FormatException)
+        {
+            // Link truncado/adulterado: antes isso gerava HTTP 500.
+            return BadRequest("O link de redefinição de senha é inválido.");
+        }
+
         Input = new InputModel
         {
             Email = email,
-            Code = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(code))
+            Code = decodedCode
         };
 
         return Page();
