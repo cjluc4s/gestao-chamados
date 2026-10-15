@@ -105,6 +105,54 @@
         });
     }
 
+    // ---------- Confirmação em modal (substitui o confirm() do navegador) ----------
+    // Uso: <form data-confirm="Texto" data-confirm-title="Título" data-confirm-ok="Rótulo do botão">
+    function initConfirm() {
+        var modalEl = null, modal = null, pendingForm = null, pendingSubmitter = null;
+
+        function build() {
+            modalEl = document.createElement("div");
+            modalEl.className = "modal fade";
+            modalEl.tabIndex = -1;
+            modalEl.setAttribute("aria-labelledby", "confirm-title");
+            modalEl.setAttribute("aria-hidden", "true");
+            modalEl.innerHTML =
+                '<div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="confirm-body">' +
+                '<span class="state-icon is-danger">' + icon("alert") + '</span>' +
+                '<h2 id="confirm-title"></h2><p class="text-muted" id="confirm-text"></p>' +
+                '<div class="d-flex gap-2 justify-content-center">' +
+                '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Voltar</button>' +
+                '<button type="button" class="btn btn-danger" id="confirm-ok"></button>' +
+                '</div></div></div></div>';
+            document.body.appendChild(modalEl);
+            modal = new bootstrap.Modal(modalEl);
+            modalEl.querySelector("#confirm-ok").addEventListener("click", function () {
+                var form = pendingForm, submitter = pendingSubmitter;
+                modal.hide();
+                if (!form) return;
+                form.dataset.confirmed = "1";
+                if (form.requestSubmit) form.requestSubmit(submitter || undefined);
+                else form.submit();
+            });
+            modalEl.addEventListener("hidden.bs.modal", function () { pendingForm = null; pendingSubmitter = null; });
+        }
+
+        // Fase de captura: roda antes da validação e da proteção de duplo envio.
+        document.addEventListener("submit", function (e) {
+            var form = e.target;
+            var text = form.getAttribute && form.getAttribute("data-confirm");
+            if (!text || form.dataset.confirmed === "1" || typeof bootstrap === "undefined") return;
+            e.preventDefault();
+            if (!modal) build();
+            pendingForm = form;
+            pendingSubmitter = e.submitter || null;
+            modalEl.querySelector("#confirm-title").textContent = form.getAttribute("data-confirm-title") || "Confirmar ação";
+            modalEl.querySelector("#confirm-text").textContent = text;
+            modalEl.querySelector("#confirm-ok").textContent = form.getAttribute("data-confirm-ok") || "Confirmar";
+            modal.show();
+        }, true);
+    }
+
     // ---------- Botão "carregando" e proteção contra duplo envio ----------
     function initSubmitGuard() {
         document.addEventListener("submit", function (e) {
@@ -265,6 +313,7 @@
     ready(function () {
         initTheme();
         initAlerts();
+        initConfirm();
         initSubmitGuard();
         initCounters();
         initPasswordToggles();

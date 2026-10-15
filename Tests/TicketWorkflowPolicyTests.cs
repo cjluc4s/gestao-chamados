@@ -22,22 +22,72 @@ public class TicketWorkflowPolicyTests
     [InlineData(TicketStatus.Resolved, TicketStatus.Open)]
     [InlineData(TicketStatus.Closed, TicketStatus.InProgress)]
     [InlineData(TicketStatus.Closed, TicketStatus.Open)]
+    [InlineData(TicketStatus.Cancelled, TicketStatus.InProgress)]
     public void CanTransition_BlocksInvalidStepsForAgents(TicketStatus from, TicketStatus to)
     {
         Assert.False(TicketWorkflowPolicy.CanTransition(from, to, isAdmin: false));
     }
 
-    [Fact]
-    public void Closed_IsFinalForAgents()
+    [Theory]
+    [InlineData(TicketStatus.Closed)]
+    [InlineData(TicketStatus.Cancelled)]
+    public void FinalStatuses_CanBeReopenedOnlyByAdmin(TicketStatus final)
     {
-        Assert.Empty(TicketWorkflowPolicy.GetAllowedTransitions(TicketStatus.Closed, isAdmin: false));
+        Assert.True(TicketWorkflowPolicy.IsFinal(final));
+        Assert.Empty(TicketWorkflowPolicy.GetAllowedTransitions(final, isAdmin: false));
+        Assert.True(TicketWorkflowPolicy.CanTransition(final, TicketStatus.InProgress, isAdmin: true));
+        Assert.False(TicketWorkflowPolicy.CanTransition(final, TicketStatus.Open, isAdmin: true));
     }
 
     [Fact]
-    public void Closed_CanBeReopenedByAdmin()
+    public void Cancelled_IsNeverOfferedAsStatusChange()
     {
-        Assert.True(TicketWorkflowPolicy.CanTransition(TicketStatus.Closed, TicketStatus.InProgress, isAdmin: true));
-        Assert.False(TicketWorkflowPolicy.CanTransition(TicketStatus.Closed, TicketStatus.Open, isAdmin: true));
+        // Cancelar tem ação própria (CanCancel); não aparece no "Alterar status".
+        foreach (var status in Enum.GetValues<TicketStatus>())
+        {
+            Assert.False(TicketWorkflowPolicy.CanTransition(status, TicketStatus.Cancelled, isAdmin: true));
+        }
+    }
+
+    [Fact]
+    public void CanEdit_CreatorOnlyWhileOpen()
+    {
+        Assert.True(TicketWorkflowPolicy.CanEdit(TicketStatus.Open, isAdmin: false, isCreator: true));
+
+        foreach (var status in Enum.GetValues<TicketStatus>().Where(s => s != TicketStatus.Open))
+        {
+            Assert.False(TicketWorkflowPolicy.CanEdit(status, isAdmin: false, isCreator: true));
+        }
+    }
+
+    [Fact]
+    public void CanEdit_AdminAnyTime_OthersNever()
+    {
+        foreach (var status in Enum.GetValues<TicketStatus>())
+        {
+            Assert.True(TicketWorkflowPolicy.CanEdit(status, isAdmin: true, isCreator: false));
+            Assert.False(TicketWorkflowPolicy.CanEdit(status, isAdmin: false, isCreator: false));
+        }
+    }
+
+    [Fact]
+    public void CanCancel_CreatorOnlyWhileOpen()
+    {
+        Assert.True(TicketWorkflowPolicy.CanCancel(TicketStatus.Open, isAdmin: false, isCreator: true));
+        Assert.False(TicketWorkflowPolicy.CanCancel(TicketStatus.InProgress, isAdmin: false, isCreator: true));
+        Assert.False(TicketWorkflowPolicy.CanCancel(TicketStatus.Open, isAdmin: false, isCreator: false));
+    }
+
+    [Theory]
+    [InlineData(TicketStatus.Open, true)]
+    [InlineData(TicketStatus.InProgress, true)]
+    [InlineData(TicketStatus.WaitingUser, true)]
+    [InlineData(TicketStatus.Resolved, true)]
+    [InlineData(TicketStatus.Closed, false)]
+    [InlineData(TicketStatus.Cancelled, false)]
+    public void CanCancel_AdminWhileNotFinal(TicketStatus status, bool expected)
+    {
+        Assert.Equal(expected, TicketWorkflowPolicy.CanCancel(status, isAdmin: true, isCreator: false));
     }
 
     [Theory]

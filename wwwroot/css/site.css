@@ -889,6 +889,43 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 .details-meta p { margin-bottom: 0.5rem; font-size: 0.93rem; }
 .details-meta strong { color: var(--c-muted); font-weight: 600; margin-right: 0.25rem; }
 
+.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem 1.25rem; }
+.meta-item dt { margin: 0 0 0.3rem; color: var(--c-muted); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.meta-item dd { margin: 0; color: var(--c-ink); font-weight: 500; overflow-wrap: anywhere; }
+
+.ticket-description { font-size: 1.02rem; margin-bottom: 0; }
+.title-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+.page-title { overflow-wrap: anywhere; }
+
+.sla-box { display: flex; align-items: center; gap: 0.9rem; }
+.sla-box .stats-icon { width: 42px; height: 42px; }
+.sla-box.ok { --accent: var(--c-success); }
+.sla-box.breach { --accent: var(--c-danger); }
+.sla-box dt { color: var(--c-muted); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.sla-box dd { margin: 0; font-weight: 600; color: var(--c-ink); }
+
+.action-block + .action-block { margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--c-border); }
+
+/* ===== Modal de confirmação ===== */
+.modal-content { background: var(--c-surface); color: var(--c-body); border: 1px solid var(--c-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); }
+.modal-backdrop { --bs-backdrop-opacity: 0.55; }
+.confirm-body { padding: 1.75rem 1.5rem; text-align: center; }
+.confirm-body .state-icon { width: 64px; height: 64px; margin-bottom: 0.75rem; }
+.confirm-body .state-icon .icon { width: 30px; height: 30px; }
+.confirm-body h2 { font-size: 1.15rem; }
+
+.btn-danger {
+  --bs-btn-bg: #dc2626;
+  --bs-btn-border-color: #dc2626;
+  --bs-btn-color: #fff;
+  --bs-btn-hover-bg: #b91c1c;
+  --bs-btn-hover-border-color: #b91c1c;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: #991b1b;
+  --bs-btn-active-border-color: #991b1b;
+  --bs-btn-active-color: #fff;
+}
+
 /* ===== Comentários ===== */
 .comment-bubble {
   border: 1px solid var(--c-border);
@@ -906,7 +943,10 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
   border-left: 3px solid var(--c-primary);
 }
 
+.comment-head { display: flex; align-items: center; gap: 0.6rem; }
+.comment-head .comment-time { margin-left: auto; }
 .comment-author { font-weight: 600; font-size: 0.9rem; color: var(--c-ink); }
+.comment-tag { font-size: 0.68rem; padding: 0.2em 0.6em; }
 .comment-time { color: var(--c-muted); font-size: 0.8rem; }
 .comment-text { margin-top: 0.35rem; color: var(--c-body); line-height: 1.55; }
 

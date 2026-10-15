@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc.Rendering;
+
 namespace gestao_chamados.Models.ViewModels;
 
 public class TicketDetailsViewModel
@@ -17,4 +19,9 @@ public class TicketDetailsViewModel
     public List<TicketStatusHistoryViewModel> History { get; set; } = [];
     public List<AttachmentViewModel> Attachments { get; set; } = [];
     public List<TicketStatus> AllowedStatuses { get; set; } = [];
+    public bool CanEdit { get; set; }
+    public bool CanCancel { get; set; }
+    public bool CanAssign { get; set; }
+    public string? AssignedToUserId { get; set; }
+    public List<SelectListItem> AssignableAgents { get; set; } = [];
 }

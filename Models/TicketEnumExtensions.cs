@@ -13,6 +13,7 @@ public static class TicketEnumExtensions
         TicketStatus.WaitingUser => "Aguardando usuário",
         TicketStatus.Resolved => "Resolvido",
         TicketStatus.Closed => "Fechado",
+        TicketStatus.Cancelled => "Cancelado",
         _ => status.ToString()
     };
 
@@ -22,6 +23,7 @@ public static class TicketEnumExtensions
         TicketStatus.WaitingUser => "waitinguser",
         TicketStatus.Resolved => "resolved",
         TicketStatus.Closed => "closed",
+        TicketStatus.Cancelled => "cancelled",
         _ => "open"
     };
 

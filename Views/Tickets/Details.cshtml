@@ -1,7 +1,16 @@
 @model gestao_chamados.Models.ViewModels.TicketDetailsViewModel
 @using gestao_chamados.Models
+@using gestao_chamados.Data
 @{
     ViewData["Title"] = $"Chamado #{Model.Id}";
+    var isFinal = TicketWorkflowPolicy.IsFinal(Model.Status);
+
+    string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        return (parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : parts[0][..Math.Min(2, parts[0].Length)]).ToUpperInvariant();
+    }
 }
 
 @functions {
@@ -13,35 +22,48 @@
     };
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="page-title mb-0">Chamado #@Model.Id - @Model.Title</h2>
-    <a asp-action="Index" class="btn btn-outline-secondary">Voltar</a>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">#@Model.Id · @Model.Title</h1>
+        <div class="title-badges">
+            <span class="badge-status @Model.Status.CssClass()">@Model.Status.Label()</span>
+            <span class="badge-priority @Model.Priority.CssClass()">@Model.Priority.Label()</span>
+        </div>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Index" class="btn btn-outline-secondary">Voltar</a>
+        @if (Model.CanEdit)
+        {
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-primary">Editar</a>
+        }
+        @if (Model.CanCancel)
+        {
+            <form method="post" asp-action="Cancel" asp-route-id="@Model.Id"
+                  data-confirm="O chamado #@Model.Id sai da fila de atendimento, mas o histórico é mantido."
+                  data-confirm-title="Cancelar este chamado?" data-confirm-ok="Cancelar chamado">
+                <button type="submit" class="btn btn-outline-danger">Cancelar chamado</button>
+            </form>
+        }
+    </div>
 </div>
 
 <div class="row g-3">
-    <div class="col-md-8">
+    <div class="col-12 col-lg-8">
         <div class="card surface-card mb-3">
             <div class="card-body">
                 <p class="ticket-description">@Model.Description</p>
                 <hr />
-                <div class="details-meta">
-                    <p><strong>Categoria:</strong> @Model.Category</p>
-                    <p>
-                        <strong>Status:</strong>
-                        <span class="badge-status @Model.Status.CssClass()">@Model.Status.Label()</span>
-                    </p>
-                    <p>
-                        <strong>Prioridade:</strong>
-                        <span class="badge-priority @Model.Priority.CssClass()">@Model.Priority.Label()</span>
-                    </p>
-                    <p><strong>Criado por:</strong> @Model.CreatedBy</p>
-                    <p class="mb-0"><strong>Atribuído para:</strong> @(Model.AssignedTo ?? "Não atribuído")</p>
-                </div>
+                <dl class="meta-grid mb-0">
+                    <div class="meta-item"><dt>Categoria</dt><dd>@Model.Category</dd></div>
+                    <div class="meta-item"><dt>Criado por</dt><dd>@Model.CreatedBy</dd></div>
+                    <div class="meta-item"><dt>Atribuído para</dt><dd>@(Model.AssignedTo ?? "Não atribuído")</dd></div>
+                    <div class="meta-item"><dt>Aberto em</dt><dd>@Model.CreatedAtUtc.ToLocalTime().ToString("g")</dd></div>
+                </dl>
             </div>
         </div>
 
         <div class="card surface-card mb-3">
-            <div class="card-header">Anexos</div>
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-paperclip" /></svg> Anexos</div>
             <div class="card-body">
                 @if (!Model.Attachments.Any())
                 {
@@ -49,14 +71,14 @@
                 }
                 else
                 {
-                    <ul class="list-group list-group-flush">
+                    <ul class="list-group list-group-flush mb-3">
                         @foreach (var att in Model.Attachments)
                         {
-                            <li class="list-group-item d-flex justify-content-between align-items-center attachment-item">
+                            <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-1 attachment-item">
                                 <div>
-                                    <span class="attachment-icon">📎</span>
+                                    <svg class="icon attachment-icon" aria-hidden="true"><use href="#i-file" /></svg>
                                     <a asp-action="Download" asp-route-id="@att.Id" class="attachment-link">@att.FileName</a>
-                                    <small class="text-muted ms-2">(@FormatFileSize(att.SizeInBytes))</small>
+                                    <small class="text-muted ms-1">(@FormatFileSize(att.SizeInBytes))</small>
                                 </div>
                                 <small class="text-muted">@att.UploadedBy · @att.UploadedAtUtc.ToLocalTime().ToString("g")</small>
                             </li>
@@ -64,13 +86,18 @@
                     </ul>
                 }
 
-                <form method="post" asp-action="UploadToTicket" enctype="multipart/form-data" class="mt-3">
+                <form method="post" asp-action="UploadToTicket" enctype="multipart/form-data">
                     <input type="hidden" name="id" value="@Model.Id" />
-                    <div class="input-group">
-                        <input type="file" name="files" class="form-control" multiple accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" />
-                        <button type="submit" class="btn btn-outline-primary">Enviar</button>
+                    <div class="dropzone" data-dropzone="#details-files" data-max-mb="10">
+                        <svg class="icon" aria-hidden="true"><use href="#i-upload" /></svg>
+                        <strong>Arraste arquivos aqui ou clique para escolher</strong>
+                        <small>Máx. 10 MB por arquivo</small>
+                        <input type="file" name="files" multiple aria-label="Anexar arquivos" accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" />
                     </div>
-                    <small class="form-text text-muted">Máx. 10 MB por arquivo.</small>
+                    <ul class="file-list" id="details-files" aria-live="polite"></ul>
+                    <button type="submit" class="btn btn-outline-primary mt-3">
+                        <svg class="icon" aria-hidden="true"><use href="#i-upload" /></svg> Enviar anexos
+                    </button>
                 </form>
             </div>
         </div>
@@ -87,8 +114,13 @@
                     foreach (var comment in Model.Comments)
                     {
                         <div class="comment-bubble mb-2 @(comment.IsStaff ? "agent" : "")">
-                            <div class="d-flex justify-content-between align-items-center">
+                            <div class="comment-head">
+                                <span class="avatar avatar-sm" aria-hidden="true">@Initials(comment.Author)</span>
                                 <span class="comment-author">@comment.Author</span>
+                                @if (comment.IsStaff)
+                                {
+                                    <span class="badge-role agent comment-tag">Equipe</span>
+                                }
                                 <span class="comment-time">@comment.CreatedAtUtc.ToLocalTime().ToString("g")</span>
                             </div>
                             <div class="comment-text">@comment.Message</div>
@@ -98,58 +130,86 @@
 
                 <form method="post" asp-action="AddComment" class="mt-3">
                     <input type="hidden" name="id" value="@Model.Id" />
-                    <textarea name="message" class="form-control mb-2" rows="3" maxlength="2000" required placeholder="Digite uma resposta..."></textarea>
-                    <button type="submit" class="btn btn-primary">Responder</button>
+                    <label for="comment-message" class="visually-hidden">Sua resposta</label>
+                    <textarea id="comment-message" name="message" class="form-control" rows="3" maxlength="2000" required placeholder="Digite uma resposta..."></textarea>
+                    <button type="submit" class="btn btn-primary mt-2">
+                        <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg> Responder
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-12 col-lg-4">
         <div class="card surface-card mb-3">
-            <div class="card-header">SLA</div>
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> SLA</div>
             <div class="card-body">
-                <p><strong>Limite:</strong> @(Model.DueAtUtc?.ToLocalTime().ToString("g") ?? "-")</p>
-                @if (Model.IsSlaBreached)
-                {
-                    <span class="badge-sla breach">⚠ SLA vencido</span>
-                }
-                else
-                {
-                    <span class="badge-sla ok">✓ Dentro do SLA</span>
-                }
+                <dl class="sla-box mb-0 @(Model.IsSlaBreached ? "breach" : "ok")">
+                    <span class="stats-icon" style="--accent: var(@(Model.IsSlaBreached ? "--c-danger" : "--c-success"))">
+                        <svg class="icon" aria-hidden="true"><use href="#@(Model.IsSlaBreached ? "i-alert" : "i-check")" /></svg>
+                    </span>
+                    <div>
+                        <dt>Limite</dt>
+                        <dd>@(Model.DueAtUtc?.ToLocalTime().ToString("g") ?? "-")</dd>
+                        <span class="badge-sla @(Model.IsSlaBreached ? "breach" : "ok") mt-1">@(Model.IsSlaBreached ? "SLA vencido" : "Dentro do SLA")</span>
+                    </div>
+                </dl>
             </div>
         </div>
 
         @if (User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin))
         {
             <div class="card surface-card mb-3">
-                <div class="card-header">Ações</div>
+                <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg> Ações</div>
                 <div class="card-body">
-                    @if (Model.AllowedStatuses.Any())
+                    <div class="action-block">
+                        @if (Model.AllowedStatuses.Any())
+                        {
+                            <form method="post" asp-action="ChangeStatus">
+                                <input type="hidden" name="id" value="@Model.Id" />
+                                <label for="status-select" class="form-label">Alterar status</label>
+                                <select id="status-select" name="status" class="form-select mb-2">
+                                    @foreach (var next in Model.AllowedStatuses)
+                                    {
+                                        <option value="@next">@next.Label()</option>
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary w-100">Alterar status</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <p class="text-muted mb-0">Chamado encerrado: o status não pode mais ser alterado.</p>
+                        }
+                    </div>
+
+                    @if (Model.CanAssign)
                     {
-                        <form method="post" asp-action="ChangeStatus">
-                            <input type="hidden" name="id" value="@Model.Id" />
-                            <select name="status" class="form-select mb-2">
-                                @foreach (var next in Model.AllowedStatuses)
-                                {
-                                    <option value="@next">@next.Label()</option>
-                                }
-                            </select>
-                            <button type="submit" class="btn btn-outline-primary w-100">Alterar status</button>
-                        </form>
-                    }
-                    else
-                    {
-                        <p class="text-muted mb-0">Chamado encerrado: o status não pode mais ser alterado.</p>
+                        <div class="action-block">
+                            <form method="post" asp-action="Assign" asp-route-id="@Model.Id">
+                                <label for="agentId" class="form-label">Atendente responsável</label>
+                                <select id="agentId" name="agentId" class="form-select mb-2">
+                                    <option value="" selected="@(Model.AssignedToUserId is null)">Não atribuído (fila)</option>
+                                    @foreach (var agent in Model.AssignableAgents)
+                                    {
+                                        <option value="@agent.Value" selected="@(agent.Value == Model.AssignedToUserId)">@agent.Text</option>
+                                    }
+                                </select>
+                                <button type="submit" class="btn btn-outline-secondary w-100">
+                                    @(Model.AssignedToUserId is null ? "Atribuir" : "Reatribuir")
+                                </button>
+                            </form>
+                        </div>
                     }
 
-                    @if (User.IsInRole(RoleNames.Agent) && string.IsNullOrWhiteSpace(Model.AssignedTo))
+                    @if (User.IsInRole(RoleNames.Agent) && string.IsNullOrWhiteSpace(Model.AssignedTo) && !isFinal)
                     {
-                        <form method="post" asp-action="AssignToMe" class="mt-2">
-                            <input type="hidden" name="id" value="@Model.Id" />
-                            <button type="submit" class="btn btn-outline-secondary w-100">Assumir chamado</button>
-                        </form>
+                        <div class="action-block">
+                            <form method="post" asp-action="AssignToMe">
+                                <input type="hidden" name="id" value="@Model.Id" />
+                                <button type="submit" class="btn btn-primary w-100">Assumir chamado</button>
+                            </form>
+                        </div>
                     }
                 </div>
             </div>

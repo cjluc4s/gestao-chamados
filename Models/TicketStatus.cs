@@ -17,5 +17,8 @@ public enum TicketStatus
     Resolved = 4,
 
     [Display(Name = "Fechado")]
-    Closed = 5
+    Closed = 5,
+
+    [Display(Name = "Cancelado")]
+    Cancelled = 6
 }

@@ -1,0 +1,70 @@
+@model gestao_chamados.Models.ViewModels.TicketEditViewModel
+@using gestao_chamados.Models
+@{
+    ViewData["Title"] = $"Editar chamado #{Model.Id}";
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Editar chamado #@Model.Id</h1>
+        <p class="page-subtitle">Ajuste as informações do chamado.</p>
+    </div>
+    <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm d-none d-sm-inline-flex">Voltar</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-8">
+        <div class="card surface-card">
+            <div class="card-body">
+                <form method="post" asp-action="Edit" asp-route-id="@Model.Id">
+                    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Title" class="form-label"></label>
+                        <input asp-for="Title" class="form-control" maxlength="120" data-counter />
+                        <span asp-validation-for="Title" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label"></label>
+                        <textarea asp-for="Description" class="form-control" rows="6" maxlength="3000"></textarea>
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Priority" class="form-label"></label>
+                            <select asp-for="Priority" class="form-select" asp-items="Html.GetEnumSelectList<TicketPriority>()"></select>
+                            <span asp-validation-for="Priority" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="CategoryId" class="form-label"></label>
+                            <select asp-for="CategoryId" class="form-select" asp-items="Model.Categories"></select>
+                            <span asp-validation-for="CategoryId" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> Salvar alterações
+                        </button>
+                        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <aside class="col-12 col-lg-4">
+        <div class="card surface-card">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> Sobre o prazo (SLA)</div>
+            <div class="card-body">
+                <p class="text-muted small mb-0">Mudar a prioridade recalcula o limite do SLA a partir da <strong>abertura</strong> do chamado. Subir a prioridade de um chamado antigo pode deixá-lo imediatamente vencido, o que é esperado.</p>
+            </div>
+        </div>
+    </aside>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

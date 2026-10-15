@@ -28,8 +28,10 @@ public class DashboardController : Controller
             return Challenge();
         }
 
+        // Chamado cancelado é exclusão lógica: não entra nos indicadores
+        // (continua visível na lista de chamados, filtrando por "Cancelado").
         var query = TicketAccessPolicy.ApplyVisibility(
-            _context.Tickets.AsNoTracking(),
+            _context.Tickets.AsNoTracking().Where(t => t.Status != TicketStatus.Cancelled),
             TicketAccessPolicy.ResolveRole(User),
             currentUserId);
 
@@ -40,7 +42,7 @@ public class DashboardController : Controller
             TotalTickets = await query.CountAsync(),
             OpenTickets = await query.CountAsync(t => t.Status == TicketStatus.Open || t.Status == TicketStatus.InProgress || t.Status == TicketStatus.WaitingUser),
             ResolvedTickets = await query.CountAsync(t => t.Status == TicketStatus.Resolved || t.Status == TicketStatus.Closed),
-            SlaBreachedTickets = await query.CountAsync(t => t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed),
+            SlaBreachedTickets = await query.CountAsync(t => t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc && !SlaPolicy.ClockStoppedStatuses.Contains(t.Status)),
             ByPriority = await query
                 .GroupBy(t => t.Priority)
                 .Select(g => new { Priority = g.Key, Count = g.Count() })

@@ -184,15 +184,7 @@ public class TicketsController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(TicketCreateViewModel model)
     {
-        if (!Enum.IsDefined(model.Priority))
-        {
-            ModelState.AddModelError(nameof(model.Priority), "Selecione uma prioridade válida.");
-        }
-
-        if (!await _context.Categories.AnyAsync(c => c.Id == model.CategoryId))
-        {
-            ModelState.AddModelError(nameof(model.CategoryId), "Selecione uma categoria válida.");
-        }
+        await ValidatePriorityAndCategoryAsync(model.Priority, model.CategoryId);
 
         if (!ModelState.IsValid)
         {
@@ -216,7 +208,7 @@ public class TicketsController : Controller
             Status = TicketStatus.Open,
             CreatedByUserId = currentUserId,
             CreatedAtUtc = now,
-            DueAtUtc = now.Add(SlaPolicy.GetDeadline(model.Priority))
+            DueAtUtc = SlaPolicy.GetDueAt(now, model.Priority)
         };
 
         // Chamado e histórico inicial no mesmo SaveChanges: ou grava os dois, ou nenhum.
@@ -290,7 +282,9 @@ public class TicketsController : Controller
         }
 
         var isAdmin = User.IsInRole(RoleNames.Admin);
+        var isCreator = ticket.CreatedByUserId == _userManager.GetUserId(User);
         var canChangeStatus = isAdmin || User.IsInRole(RoleNames.Agent);
+        var canAssign = isAdmin && !TicketWorkflowPolicy.IsFinal(ticket.Status);
 
         var model = new TicketDetailsViewModel
         {
@@ -308,6 +302,11 @@ public class TicketsController : Controller
             AllowedStatuses = canChangeStatus
                 ? TicketWorkflowPolicy.GetAllowedTransitions(ticket.Status, isAdmin).ToList()
                 : [],
+            CanEdit = TicketWorkflowPolicy.CanEdit(ticket.Status, isAdmin, isCreator),
+            CanCancel = TicketWorkflowPolicy.CanCancel(ticket.Status, isAdmin, isCreator),
+            CanAssign = canAssign,
+            AssignedToUserId = ticket.AssignedToUserId,
+            AssignableAgents = canAssign ? await GetAgentSelectListAsync(ticket.AssignedToUser) : [],
             Comments = ticket.Comments
                 .OrderBy(c => c.CreatedAtUtc)
                 .Select(c => new TicketCommentViewModel
@@ -523,6 +522,12 @@ public class TicketsController : Controller
             return RedirectToAction(nameof(Details), new { id });
         }
 
+        if (TicketWorkflowPolicy.IsFinal(ticket.Status))
+        {
+            TempData["Notification"] = "Chamado encerrado não pode ser assumido.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
         // Update condicional e atômico: se dois atendentes clicarem ao mesmo
         // tempo, só o primeiro assume o chamado.
         var updated = await _context.Tickets
@@ -541,6 +546,204 @@ public class TicketsController : Controller
         await NotifyAsync(ticket.CreatedByUserId, $"{agentName} assumiu o chamado #{id}");
 
         TempData["Notification"] = "Chamado atribuído a você.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    public async Task<IActionResult> Edit(int id)
+    {
+        var ticket = await _context.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanAccessTicket(ticket))
+        {
+            return Forbid();
+        }
+
+        if (!CanEditTicket(ticket))
+        {
+            TempData["Notification"] = "Este chamado não pode mais ser editado.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        return View(new TicketEditViewModel
+        {
+            Id = ticket.Id,
+            Title = ticket.Title,
+            Description = ticket.Description,
+            Priority = ticket.Priority,
+            CategoryId = ticket.CategoryId,
+            Categories = await GetCategorySelectListAsync()
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Edit(int id, TicketEditViewModel model)
+    {
+        var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanAccessTicket(ticket))
+        {
+            return Forbid();
+        }
+
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Challenge();
+        }
+
+        // Revalida no POST: o chamado pode ter sido assumido enquanto o formulário estava aberto.
+        if (!CanEditTicket(ticket))
+        {
+            TempData["Notification"] = "Este chamado não pode mais ser editado.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        await ValidatePriorityAndCategoryAsync(model.Priority, model.CategoryId);
+
+        if (!ModelState.IsValid)
+        {
+            model.Id = id;
+            model.Categories = await GetCategorySelectListAsync();
+            return View(model);
+        }
+
+        var priorityChanged = ticket.Priority != model.Priority;
+        ticket.DueAtUtc = SlaPolicy.RecalculateDueAt(ticket.CreatedAtUtc, ticket.DueAtUtc, ticket.Priority, model.Priority);
+        ticket.Title = model.Title.Trim();
+        ticket.Description = model.Description.Trim();
+        ticket.CategoryId = model.CategoryId;
+        ticket.Priority = model.Priority;
+        ticket.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        var message = priorityChanged
+            ? $"Chamado #{id} editado: prioridade agora é {model.Priority.Label()}"
+            : $"Chamado #{id} editado";
+        await NotifyOthersAsync(currentUserId, message, ticket.CreatedByUserId, ticket.AssignedToUserId ?? "Agents");
+
+        TempData["Notification"] = priorityChanged
+            ? "Chamado atualizado. O limite do SLA foi recalculado para a nova prioridade."
+            : "Chamado atualizado.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Cancel(int id)
+    {
+        var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanAccessTicket(ticket))
+        {
+            return Forbid();
+        }
+
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Challenge();
+        }
+
+        var isAdmin = User.IsInRole(RoleNames.Admin);
+        if (!TicketWorkflowPolicy.CanCancel(ticket.Status, isAdmin, ticket.CreatedByUserId == currentUserId))
+        {
+            TempData["Notification"] = "Este chamado não pode ser cancelado.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        // Exclusão lógica: nada é apagado, o chamado só sai do fluxo de atendimento.
+        var now = DateTime.UtcNow;
+        var previous = ticket.Status;
+        ticket.Status = TicketStatus.Cancelled;
+        ticket.UpdatedAtUtc = now;
+
+        _context.TicketStatusHistory.Add(new TicketStatusHistory
+        {
+            TicketId = ticket.Id,
+            FromStatus = previous,
+            ToStatus = TicketStatus.Cancelled,
+            ChangedByUserId = currentUserId,
+            ChangedAtUtc = now
+        });
+
+        await _context.SaveChangesAsync();
+
+        await NotifyOthersAsync(currentUserId, $"Chamado #{id} foi cancelado", ticket.CreatedByUserId, ticket.AssignedToUserId);
+
+        TempData["Notification"] = "Chamado cancelado.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> Assign(int id, string? agentId)
+    {
+        var ticket = await _context.Tickets.FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Challenge();
+        }
+
+        agentId = string.IsNullOrWhiteSpace(agentId) ? null : agentId;
+        var agents = await _userManager.GetUsersInRoleAsync(RoleNames.Agent);
+
+        switch (TicketAssignmentPolicy.Check(ticket.Status, ticket.AssignedToUserId, agentId, agents.Select(a => a.Id).ToList()))
+        {
+            case AssignmentCheck.Unchanged:
+                return RedirectToAction(nameof(Details), new { id });
+            case AssignmentCheck.TicketFinal:
+                TempData["Notification"] = "Chamado encerrado não pode ser atribuído.";
+                return RedirectToAction(nameof(Details), new { id });
+            case AssignmentCheck.NotAnAgent:
+                TempData["Notification"] = "Selecione um atendente válido.";
+                return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var previousAssigneeId = ticket.AssignedToUserId;
+        ticket.AssignedToUserId = agentId;
+        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        var newAgent = agents.FirstOrDefault(a => a.Id == agentId);
+        if (newAgent is not null)
+        {
+            await NotifyOthersAsync(currentUserId, $"O chamado #{id} foi atribuído a você: {ticket.Title}", newAgent.Id);
+            await NotifyOthersAsync(currentUserId, $"Chamado #{id} atribuído a {newAgent.FullName}", ticket.CreatedByUserId);
+            TempData["Notification"] = $"Chamado atribuído a {newAgent.FullName}.";
+        }
+        else
+        {
+            await NotifyAsync("Agents", $"Chamado #{id} voltou para a fila: {ticket.Title}");
+            await NotifyOthersAsync(currentUserId, $"Chamado #{id} voltou para a fila de atendimento", ticket.CreatedByUserId);
+            TempData["Notification"] = "Chamado devolvido à fila de atendimento.";
+        }
+
+        if (previousAssigneeId is not null)
+        {
+            await NotifyOthersAsync(currentUserId, $"O chamado #{id} foi reatribuído e não está mais com você", previousAssigneeId);
+        }
+
         return RedirectToAction(nameof(Details), new { id });
     }
 
@@ -617,8 +820,55 @@ public class TicketsController : Controller
             ticket.CreatedByUserId,
             ticket.AssignedToUserId);
 
+    private bool CanEditTicket(Ticket ticket) =>
+        TicketWorkflowPolicy.CanEdit(
+            ticket.Status,
+            User.IsInRole(RoleNames.Admin),
+            ticket.CreatedByUserId == _userManager.GetUserId(User));
+
     private Task NotifyAsync(string group, string message) =>
         _hub.Clients.Group(group).SendAsync("ReceiveNotification", message);
+
+    /// <summary>
+    /// Notifica cada grupo/usuário uma única vez, sem avisar quem fez a ação.
+    /// </summary>
+    private async Task NotifyOthersAsync(string currentUserId, string message, params string?[] groups)
+    {
+        foreach (var group in groups.OfType<string>().Distinct().Where(g => g != currentUserId))
+        {
+            await NotifyAsync(group, message);
+        }
+    }
+
+    private async Task ValidatePriorityAndCategoryAsync(TicketPriority priority, int categoryId)
+    {
+        if (!Enum.IsDefined(priority))
+        {
+            ModelState.AddModelError("Priority", "Selecione uma prioridade válida.");
+        }
+
+        if (!await _context.Categories.AnyAsync(c => c.Id == categoryId))
+        {
+            ModelState.AddModelError("CategoryId", "Selecione uma categoria válida.");
+        }
+    }
+
+    private async Task<List<SelectListItem>> GetAgentSelectListAsync(ApplicationUser? currentAssignee)
+    {
+        var items = (await _userManager.GetUsersInRoleAsync(RoleNames.Agent))
+            .OrderBy(a => a.FullName)
+            .Select(a => new SelectListItem(a.FullName, a.Id))
+            .ToList();
+
+        // Responsável que perdeu o papel de Atendente continua visível como valor atual,
+        // senão o select mostraria "Não atribuído" e um envio desatento o tiraria do chamado.
+        if (currentAssignee is not null && items.All(i => i.Value != currentAssignee.Id))
+        {
+            items.Insert(0, new SelectListItem($"{currentAssignee.FullName} (não é mais atendente)", currentAssignee.Id));
+        }
+
+        return items;
+    }
 
     private async Task<TicketCreateViewModel> BuildCreateViewModelAsync()
     {
@@ -755,6 +1005,6 @@ public class TicketsController : Controller
             CreatedAtUtc = t.CreatedAtUtc,
             DueAtUtc = t.DueAtUtc,
             IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc
-                && t.Status != TicketStatus.Resolved && t.Status != TicketStatus.Closed
+                && !SlaPolicy.ClockStoppedStatuses.Contains(t.Status)
         });
 }
