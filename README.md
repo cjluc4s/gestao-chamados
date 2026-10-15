@@ -57,9 +57,12 @@ Qualquer pessoa pode se cadastrar em `/Identity/Account/Register` e recebe o pap
 | Ver chamados | os que abriu | os atribuídos a ele e os sem responsável | todos |
 | Abrir chamado | ✅ | — (sem botão na lista) | ✅ |
 | Comentar e anexar arquivos | nos que pode ver | nos que pode ver | todos |
+| Editar título, descrição, categoria e prioridade | os que abriu, enquanto Abertos | os que abriu, enquanto Abertos | sempre |
+| Cancelar chamado | os que abriu, enquanto Abertos | os que abriu, enquanto Abertos | se não estiver Fechado/Cancelado |
 | Assumir chamado sem responsável | — | ✅ | — |
+| Atribuir/reatribuir a um atendente | — | — | ✅ |
 | Alterar status | — | ✅ | ✅ |
-| Reabrir chamado fechado | — | — | ✅ |
+| Reabrir chamado fechado ou cancelado | — | — | ✅ |
 | Gerenciar papéis e ver SLAs | — | — | ✅ |
 
 Um atendente **não** vê nem assume chamados que já estão com outro atendente. A mesma regra vale para as telas, o dashboard, as exportações e a API ([`TicketAccessPolicy`](Data/TicketAccessPolicy.cs)).
@@ -81,6 +84,9 @@ Transições permitidas ([`TicketWorkflowPolicy`](Data/TicketWorkflowPolicy.cs))
 | Aguardando usuário | Em andamento, Resolvido, Fechado |
 | Resolvido | Em andamento (reabertura), Fechado |
 | Fechado | — (só o Admin pode reabrir para Em andamento) |
+| Cancelado | — (só o Admin pode reabrir para Em andamento) |
+
+**Cancelar é a "exclusão" do sistema:** nada é apagado. O chamado vai para "Cancelado" pelo botão próprio (não aparece em "Alterar status"), sai da contagem de SLA e mantém comentários, anexos e histórico.
 
 Automatismos:
 - Se um atendente muda o status de um chamado sem responsável, ele passa a ser o responsável.
@@ -98,7 +104,9 @@ O prazo é calculado na abertura a partir da prioridade ([`SlaPolicy`](Data/SlaP
 | Média | 12 horas |
 | Baixa | 24 horas |
 
-O chamado conta como **SLA vencido** se o prazo passou e ele ainda não foi resolvido nem fechado.
+O chamado conta como **SLA vencido** se o prazo passou e ele ainda não foi resolvido, fechado nem cancelado.
+
+Se a prioridade for alterada numa edição, o prazo é recalculado **a partir da abertura**: subir para Crítica um chamado aberto há 5 horas o deixa vencido na hora.
 
 ### Anexos
 
@@ -109,18 +117,52 @@ O chamado conta como **SLA vencido** se o prazo passou e ele ainda não foi reso
 
 ## ⚙️ Funcionalidades
 
-- **Chamados:** abertura com categoria, prioridade e anexos; detalhes com comentários, anexos e histórico.
+- **Chamados:** abertura com categoria, prioridade e anexos; detalhes com comentários, anexos e histórico; edição, cancelamento e atribuição pelo Admin (ver permissões acima).
 - **Lista:** filtros por status e período (datas no fuso do servidor) e paginação de 20 em 20.
 - **Exportação:** CSV (UTF-8, separador `;`, pronto para o Excel e protegido contra injeção de fórmulas) e PDF, com os filtros aplicados.
-- **Dashboard:** total, abertos, resolvidos, SLA vencido e distribuição por prioridade, de acordo com o que cada papel pode ver.
+- **Dashboard:** total, em aberto, resolvidos, SLA vencido, distribuição por prioridade e percentuais de resolução e de prazo, de acordo com o que cada papel pode ver. Chamados cancelados (exclusão lógica) não entram nos indicadores, mas continuam na lista, filtrando por "Cancelado".
 - **Notificações em tempo real (SignalR):**
   - novo chamado → atendentes e admins;
   - mudança de status → solicitante e responsável;
   - novo comentário → solicitante e responsável (se ainda não houver responsável, todos os atendentes);
-  - chamado assumido → solicitante.
+  - chamado assumido → solicitante;
+  - chamado atribuído pelo Admin → novo responsável, solicitante e responsável anterior (devolvido à fila → todos os atendentes);
+  - chamado editado → solicitante e responsável (sem responsável, todos os atendentes);
+  - chamado cancelado → solicitante e responsável.
 - **Conta:** login com bloqueio após 5 tentativas (15 min), autocadastro e redefinição de senha.
 
 > **Redefinição de senha:** não há envio de e-mail configurado. O link sai no log da aplicação e, em Development, também aparece na tela de confirmação.
+
+## 🎨 Interface
+
+A interface é responsiva (celular, tablet e desktop), tem tema claro e escuro e não depende de nenhum serviço externo além do cliente SignalR. O design system está em [`wwwroot/css/site.css`](wwwroot/css/site.css), com tokens de cor no topo do arquivo.
+
+### Cores e significado
+
+Cada cor tem um único significado em todo o sistema, e nenhum estado depende só da cor (sempre há texto ou ícone):
+
+| Cor | Significado | Onde aparece |
+|---|---|---|
+| Azul | Confiança e estabilidade | Marca, botões principais, status "Aberto" |
+| Ciano | Fluxo e atividade | "Em andamento" |
+| Violeta | Pausa e espera | "Aguardando usuário" |
+| Verde | Alívio e conclusão | "Resolvido", SLA no prazo |
+| Âmbar / laranja | Atenção, sem alarme | Pendências, prioridades Média e Alta |
+| Vermelho | Urgência | **Só** SLA vencido e prioridade Crítica |
+| Cinza | Neutro, encerrado | "Fechado", "Cancelado", prioridade Baixa |
+
+Reservar o vermelho para o que é urgente faz com que ele seja notado quando aparece.
+
+### Interações
+- **Tema:** segue o sistema e pode ser trocado pelo botão no menu; a escolha fica salva no navegador.
+- **Notificações:** além do aviso na tela, o sino do menu guarda as últimas 15 da sessão, com contador de novas.
+- **Lista de chamados:** chips de status, linhas clicáveis e, no celular, cartões no lugar da tabela.
+- **Formulários:** contador de caracteres, mostrar/ocultar senha, anexos por arrastar e soltar (com aviso de arquivo inválido antes de enviar), botão com indicador de carregamento e proteção contra envio duplicado.
+- **Ações destrutivas** (como cancelar um chamado) pedem confirmação em um modal.
+- **Usuários (Admin):** busca instantânea.
+- **Acessibilidade:** link para pular ao conteúdo, foco visível, rótulos em ícones e respeito à preferência "reduzir movimento" do sistema.
+
+O JavaScript é opcional: sem ele as páginas continuam funcionando, apenas sem essas interações ([`ui.js`](wwwroot/js/ui.js) e [`notifications.js`](wwwroot/js/notifications.js)).
 
 ## 🔌 API REST (somente leitura)
 
@@ -154,7 +196,7 @@ Exemplo de resposta da listagem:
 }
 ```
 
-`status`: 1 Aberto, 2 Em andamento, 3 Aguardando usuário, 4 Resolvido, 5 Fechado.
+`status`: 1 Aberto, 2 Em andamento, 3 Aguardando usuário, 4 Resolvido, 5 Fechado, 6 Cancelado.
 `priority`: 1 Baixa, 2 Média, 3 Alta, 4 Crítica. Todas as datas estão em UTC.
 
 ## 🗂️ Estrutura
@@ -165,12 +207,12 @@ Controllers/      MVC (Tickets, Dashboard, Admin) e Api/ (REST)
 Data/             DbContext, seed, migrations e políticas de negócio (*Policy.cs)
 Hubs/             Hub SignalR de notificações
 Models/           Entidades, enums e ViewModels
-Views/            Telas Razor
-wwwroot/          CSS, JS (cliente SignalR) e bibliotecas front-end
+Views/            Telas Razor (Shared/ tem o layout, os ícones SVG e o menu do usuário)
+wwwroot/          css/site.css (design system), js/ui.js (interações), js/notifications.js (SignalR) e bibliotecas
 Tests/            Testes xUnit das políticas de negócio
 ```
 
-As regras de negócio ficam em classes estáticas puras em `Data/` (`TicketAccessPolicy`, `TicketWorkflowPolicy`, `SlaPolicy`, `AttachmentPolicy`, `CsvFormatter`). Os controllers só as aplicam, o que permite testá-las sem banco nem HTTP.
+As regras de negócio ficam em classes estáticas puras em `Data/` (`TicketAccessPolicy`, `TicketWorkflowPolicy`, `TicketAssignmentPolicy`, `SlaPolicy`, `AttachmentPolicy`, `CsvFormatter`). Os controllers só as aplicam, o que permite testá-las sem banco nem HTTP.
 
 ## 🧪 Testes
 
@@ -178,7 +220,7 @@ As regras de negócio ficam em classes estáticas puras em `Data/` (`TicketAcces
 dotnet test
 ```
 
-Cobrem controle de acesso por papel (incluindo a regressão de "roubo" de chamado entre atendentes), transições de status, SLA, anexos e formatação/escape do CSV.
+Cobrem controle de acesso por papel (incluindo a regressão de "roubo" de chamado entre atendentes), transições de status, quem pode editar/cancelar, atribuição pelo Admin, SLA (inclusive recálculo ao mudar a prioridade), anexos e formatação/escape do CSV.
 
 ## 🗄️ Migrations
 
