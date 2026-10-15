@@ -2,47 +2,83 @@
 @{
     ViewData["Title"] = "Usuários";
     var assignableRoles = ViewBag.AssignableRoles as string[] ?? Array.Empty<string>();
+    var count = Model.Count();
+
+    string RoleLabel(string role) => role switch
+    {
+        "Admin" => "Administrador",
+        "Agent" => "Atendente",
+        "User" => "Usuário",
+        _ => role
+    };
+
+    string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return "?";
+        return (parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : parts[0][..Math.Min(2, parts[0].Length)]).ToUpperInvariant();
+    }
 }
 
-<h2 class="page-title">Usuários</h2>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Usuários</h1>
+        <p class="page-subtitle"><span class="result-count" id="user-count">@count @(count == 1 ? "usuário" : "usuários")</span> · defina o papel de cada pessoa.</p>
+    </div>
+    <div class="search-box" style="min-width: min(320px, 100%)">
+        <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg>
+        <input type="search" class="form-control" placeholder="Buscar por nome, e-mail ou papel" aria-label="Buscar usuários"
+               data-filter-table="#users-table" data-filter-count="#user-count" />
+    </div>
+</div>
 
 <div class="card surface-card">
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-striped table-modern mb-0">
-                <thead>
-                    <tr>
-                        <th>Nome</th>
-                        <th>Email</th>
-                        <th>Login</th>
-                        <th>Papel</th>
-                        <th>Alterar papel</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var user in Model)
-                {
-                    <tr>
-                        <td>@user.FullName</td>
-                        <td>@user.Email</td>
-                        <td>@user.UserName</td>
-                        <td>@user.Role</td>
-                        <td>
-                            <form method="post" asp-action="ChangeRole" class="d-flex gap-2">
-                                <input type="hidden" name="userId" value="@user.Id" />
-                                <select name="role" class="form-select form-select-sm" style="width:auto">
-                                    @foreach (var r in assignableRoles)
-                                    {
-                                        <option value="@r" selected="@(r == user.Role)">@r</option>
-                                    }
-                                </select>
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
+        <table class="table table-modern table-stack align-middle mb-0" id="users-table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>E-mail</th>
+                    <th>Papel</th>
+                    <th>Alterar papel</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var user in Model)
+            {
+                <tr>
+                    <td data-label="Nome" class="cell-wide">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="avatar avatar-sm" aria-hidden="true">@Initials(user.FullName)</span>
+                            <span class="cell-title">@user.FullName</span>
+                        </div>
+                    </td>
+                    <td data-label="E-mail">@user.Email</td>
+                    <td data-label="Papel"><span class="badge-role @user.Role.ToLowerInvariant().Replace(" ", "")">@RoleLabel(user.Role)</span></td>
+                    <td data-label="Alterar papel">
+                        <form method="post" asp-action="ChangeRole" class="d-flex gap-2">
+                            <input type="hidden" name="userId" value="@user.Id" />
+                            <select name="role" class="form-select form-select-sm" style="width:auto" aria-label="Novo papel de @user.FullName">
+                                @foreach (var r in assignableRoles)
+                                {
+                                    <option value="@r" selected="@(r == user.Role)">@RoleLabel(r)</option>
+                                }
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">Salvar</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            <tr class="empty-row" hidden>
+                <td colspan="4">
+                    <div class="empty-state">
+                        <span class="state-icon"><svg class="icon" aria-hidden="true"><use href="#i-search" /></svg></span>
+                        <h2>Nenhum usuário encontrado</h2>
+                        <p class="mb-0">Tente buscar por outro nome ou e-mail.</p>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
     </div>
 </div>

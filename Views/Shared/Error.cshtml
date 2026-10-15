@@ -1,15 +1,16 @@
-﻿@model ErrorViewModel
+@model ErrorViewModel
 @{
     ViewData["Title"] = "Erro";
 }
 
 <div class="error-panel">
-    <h1>Erro</h1>
+    <span class="state-icon is-danger"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg></span>
+    <h1>Ops!</h1>
     <h2>Ocorreu um problema ao processar sua solicitação.</h2>
 
     @if (Model.ShowRequestId)
     {
-        <p class="mt-3">
+        <p class="mt-3 text-muted">
             <strong>ID da requisição:</strong> <code>@Model.RequestId</code>
         </p>
     }

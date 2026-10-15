@@ -1,43 +1,55 @@
-﻿@{
+@{
     ViewData["Title"] = "Início";
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
 }
 
-<div class="p-4 mb-4 hero-panel">
-    <h1 class="display-6">Sistema de Gestão de Chamados</h1>
-    <p class="lead mb-0">Help Desk corporativo com ASP.NET Core MVC, EF Core, SQLite, Identity, SLA e API REST.</p>
-</div>
+<section class="hero-panel mb-4 reveal">
+    <h1>Seus chamados, resolvidos com clareza.</h1>
+    <p class="lead mt-3 mb-4">Abra um chamado, acompanhe cada etapa e saiba exatamente quando o atendimento será concluído, com prazos de SLA e avisos em tempo real.</p>
+    <div class="d-flex flex-wrap gap-2">
+        @if (isAuthenticated)
+        {
+            <a class="btn btn-hero" asp-controller="Tickets" asp-action="Index">
+                Acessar chamados <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+            </a>
+            <a class="btn btn-hero-ghost" asp-controller="Dashboard" asp-action="Index">Ver dashboard</a>
+        }
+        else
+        {
+            <a class="btn btn-hero" asp-area="Identity" asp-page="/Account/Login">
+                Entrar <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+            </a>
+            <a class="btn btn-hero-ghost" asp-area="Identity" asp-page="/Account/Register">Criar conta</a>
+        }
+    </div>
+</section>
 
 <div class="row g-3">
-    <div class="col-md-4">
+    <div class="col-12 col-md-4 reveal">
         <div class="card h-100 feature-card">
-            <div class="card-body text-center">
-                <div class="empty-state-icon">👤</div>
-                <h5 class="card-title">Usuário</h5>
-                <p>Abre chamado, acompanha status e responde interações.</p>
+            <div class="card-body">
+                <span class="feature-icon"><svg class="icon" aria-hidden="true"><use href="#i-user" /></svg></span>
+                <h2 class="card-title h5">Usuário</h2>
+                <p>Abre chamados, anexa arquivos, acompanha o status e responde às interações.</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-12 col-md-4 reveal">
         <div class="card h-100 feature-card">
-            <div class="card-body text-center">
-                <div class="empty-state-icon">🛠️</div>
-                <h5 class="card-title">Atendente</h5>
-                <p>Visualiza chamados, assume e altera status.</p>
+            <div class="card-body">
+                <span class="feature-icon is-agent"><svg class="icon" aria-hidden="true"><use href="#i-support" /></svg></span>
+                <h2 class="card-title h5">Atendente</h2>
+                <p>Assume chamados, atualiza o status e conversa com o solicitante até a resolução.</p>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-12 col-md-4 reveal">
         <div class="card h-100 feature-card">
-            <div class="card-body text-center">
-                <div class="empty-state-icon">👑</div>
-                <h5 class="card-title">Admin</h5>
-                <p>Gerencia usuários, SLA e acompanha indicadores.</p>
+            <div class="card-body">
+                <span class="feature-icon is-admin"><svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg></span>
+                <h2 class="card-title h5">Administrador</h2>
+                <p>Gerencia usuários e papéis, acompanha os prazos de SLA e os indicadores do atendimento.</p>
             </div>
         </div>
     </div>
-</div>
-
-<div class="mt-4 text-center">
-    <a class="btn btn-primary" asp-controller="Tickets" asp-action="Index">Acessar chamados</a>
-    <a class="btn btn-outline-primary ms-2" asp-controller="Dashboard" asp-action="Index">Ver dashboard</a>
 </div>

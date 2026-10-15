@@ -4,17 +4,20 @@
     ViewData["Title"] = "Criar conta";
 }
 
-<h2 class="page-title">@ViewData["Title"]</h2>
-
-<div class="row">
-    <div class="col-md-6">
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-support" /></svg></span>
+            <h1>Criar conta</h1>
+            <p>Leva menos de um minuto.</p>
+        </div>
         <div class="card surface-card">
             <div class="card-body">
                 <form id="registerForm" asp-route-returnUrl="@Model.ReturnUrl" method="post">
                     <div asp-validation-summary="All" class="text-danger" role="alert"></div>
                     <div class="mb-3">
                         <label asp-for="Input.FullName" class="form-label"></label>
-                        <input asp-for="Input.FullName" class="form-control" autocomplete="name" />
+                        <input asp-for="Input.FullName" class="form-control" autocomplete="name" autofocus />
                         <span asp-validation-for="Input.FullName" class="text-danger"></span>
                     </div>
                     <div class="mb-3">
@@ -24,17 +27,21 @@
                     </div>
                     <div class="mb-3">
                         <label asp-for="Input.Password" class="form-label"></label>
-                        <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
+                        <input asp-for="Input.Password" class="form-control" autocomplete="new-password" aria-describedby="pwd-hint" />
                         <span asp-validation-for="Input.Password" class="text-danger"></span>
+                        <div id="pwd-hint" class="form-text">Mínimo de 8 caracteres, com maiúscula, número e símbolo.</div>
                     </div>
                     <div class="mb-3">
                         <label asp-for="Input.ConfirmPassword" class="form-label"></label>
                         <input asp-for="Input.ConfirmPassword" class="form-control" autocomplete="new-password" />
                         <span asp-validation-for="Input.ConfirmPassword" class="text-danger"></span>
                     </div>
-                    <button type="submit" class="btn btn-primary">Criar conta</button>
-                    <a asp-area="Identity" asp-page="/Account/Login" class="btn btn-outline-secondary">Já tenho conta</a>
+                    <button type="submit" class="btn btn-primary w-100">Criar conta</button>
                 </form>
+                <div class="auth-links">
+                    <span class="text-muted">Já tem conta?</span>
+                    <a asp-area="Identity" asp-page="/Account/Login">Entrar</a>
+                </div>
             </div>
         </div>
     </div>

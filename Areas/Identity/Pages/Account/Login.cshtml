@@ -4,10 +4,13 @@
     ViewData["Title"] = "Entrar";
 }
 
-<h2 class="page-title">Entrar</h2>
-
-<div class="row">
-    <div class="col-md-6">
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand">
+            <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-support" /></svg></span>
+            <h1>Bem-vindo de volta</h1>
+            <p>Entre para acompanhar seus chamados.</p>
+        </div>
         <div class="card surface-card">
             <div class="card-body">
                 <form id="account" method="post" asp-route-returnUrl="@Model.ReturnUrl">
@@ -26,12 +29,12 @@
                         <input asp-for="Input.RememberMe" class="form-check-input" />
                         <label asp-for="Input.RememberMe" class="form-check-label"></label>
                     </div>
-                    <button type="submit" class="btn btn-primary">Entrar</button>
-                    <a asp-page="/Account/Register" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-outline-secondary">Criar conta</a>
+                    <button type="submit" class="btn btn-primary w-100">Entrar</button>
                 </form>
-                <p class="mt-3 mb-0">
+                <div class="auth-links">
                     <a asp-page="/Account/ForgotPassword">Esqueceu sua senha?</a>
-                </p>
+                    <a asp-page="/Account/Register" asp-route-returnUrl="@Model.ReturnUrl">Criar conta</a>
+                </div>
             </div>
         </div>
     </div>

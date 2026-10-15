@@ -2,31 +2,54 @@
 @using gestao_chamados.Models
 @{
     ViewData["Title"] = "Chamados";
+    var hasFilters = Model.Status.HasValue || Model.StartDate.HasValue || Model.EndDate.HasValue;
+    var startText = Model.StartDate?.ToString("yyyy-MM-dd");
+    var endText = Model.EndDate?.ToString("yyyy-MM-dd");
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="page-title mb-0">Chamados</h2>
-    <div class="d-flex gap-2">
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Chamados</h1>
+        <p class="page-subtitle">
+            <span class="result-count">@Model.TotalCount @(Model.TotalCount == 1 ? "chamado" : "chamados")@(hasFilters ? " com os filtros aplicados" : "")</span>
+        </p>
+    </div>
+    <div class="page-actions">
         <a class="btn btn-outline-success btn-sm" asp-action="ExportCsv"
            asp-route-status="@Context.Request.Query["status"]"
            asp-route-startDate="@Context.Request.Query["startDate"]"
-           asp-route-endDate="@Context.Request.Query["endDate"]">📥 CSV</a>
+           asp-route-endDate="@Context.Request.Query["endDate"]">
+            <svg class="icon" aria-hidden="true"><use href="#i-download" /></svg> CSV
+        </a>
         <a class="btn btn-outline-danger btn-sm" asp-action="ExportPdf"
            asp-route-status="@Context.Request.Query["status"]"
            asp-route-startDate="@Context.Request.Query["startDate"]"
-           asp-route-endDate="@Context.Request.Query["endDate"]">📄 PDF</a>
+           asp-route-endDate="@Context.Request.Query["endDate"]">
+            <svg class="icon" aria-hidden="true"><use href="#i-file" /></svg> PDF
+        </a>
         @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
         {
-            <a class="btn btn-primary btn-sm" asp-action="Create">Novo chamado</a>
+            <a class="btn btn-primary btn-sm" asp-action="Create">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg> Novo chamado
+            </a>
         }
     </div>
 </div>
 
+<nav class="chip-row" aria-label="Filtrar por status">
+    <a class="chip @(Model.Status is null ? "active" : "")" asp-action="Index" asp-route-startDate="@startText" asp-route-endDate="@endText">Todos</a>
+    @foreach (var s in Enum.GetValues<TicketStatus>())
+    {
+        <a class="chip s-@s.CssClass() @(Model.Status == s ? "active" : "")" asp-action="Index" asp-route-status="@s" asp-route-startDate="@startText" asp-route-endDate="@endText">@s.Label()</a>
+    }
+</nav>
+
 <div class="card surface-card mb-3">
     <div class="filters-panel">
-        <form method="get" class="row g-2">
-            <div class="col-md-3">
-                <select name="status" class="form-select">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="f-status">Status</label>
+                <select id="f-status" name="status" class="form-select">
                     <option value="">Todos os status</option>
                     @foreach (var s in Enum.GetValues<TicketStatus>())
                     {
@@ -34,14 +57,24 @@
                     }
                 </select>
             </div>
-            <div class="col-md-3">
-                <input name="startDate" type="date" class="form-control" value="@Model.StartDate?.ToString("yyyy-MM-dd")" />
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-start">De</label>
+                <input id="f-start" name="startDate" type="date" class="form-control" value="@startText" />
             </div>
-            <div class="col-md-3">
-                <input name="endDate" type="date" class="form-control" value="@Model.EndDate?.ToString("yyyy-MM-dd")" />
+            <div class="col-6 col-md-3">
+                <label class="form-label" for="f-end">Até</label>
+                <input id="f-end" name="endDate" type="date" class="form-control" value="@endText" />
             </div>
-            <div class="col-md-3 d-grid">
-                <button type="submit" class="btn btn-outline-secondary">Filtrar</button>
+            <div class="col-12 col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary flex-grow-1">
+                    <svg class="icon" aria-hidden="true"><use href="#i-filter" /></svg> Filtrar
+                </button>
+                @if (hasFilters)
+                {
+                    <a class="btn btn-outline-secondary" asp-action="Index" title="Limpar filtros" aria-label="Limpar filtros">
+                        <svg class="icon" aria-hidden="true"><use href="#i-x" /></svg>
+                    </a>
+                }
             </div>
         </form>
     </div>
@@ -49,52 +82,66 @@
 
 <div class="card surface-card">
     <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-striped align-middle table-modern mb-0">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Título</th>
-                        <th>Categoria</th>
-                        <th>Status</th>
-                        <th>Prioridade</th>
-                        <th>SLA</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                @if (!Model.Items.Any())
-                {
-                    <tr>
-                        <td colspan="7" class="text-center text-muted py-4">Nenhum chamado encontrado.</td>
-                    </tr>
-                }
-                @foreach (var item in Model.Items)
-                {
-                    <tr>
-                        <td><strong>@item.Id</strong></td>
-                        <td>@item.Title</td>
-                        <td>@item.Category</td>
-                        <td><span class="badge-status @item.Status.CssClass()">@item.Status.Label()</span></td>
-                        <td><span class="badge-priority @item.Priority.CssClass()">@item.Priority.Label()</span></td>
-                        <td>
-                            @if (item.IsSlaBreached)
+        <table class="table table-modern table-stack align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Título</th>
+                    <th>Categoria</th>
+                    <th>Status</th>
+                    <th>Prioridade</th>
+                    <th>SLA</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (!Model.Items.Any())
+            {
+                <tr class="empty-row">
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <span class="state-icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg></span>
+                            <h2>@(hasFilters ? "Nada encontrado com esses filtros" : "Nenhum chamado por aqui")</h2>
+                            <p>@(hasFilters ? "Tente ampliar o período ou escolher outro status." : "Quando houver chamados, eles aparecem nesta lista.")</p>
+                            @if (hasFilters)
                             {
-                                <span class="badge-sla breach">⚠ Vencido</span>
+                                <a class="btn btn-outline-primary btn-sm" asp-action="Index">Limpar filtros</a>
                             }
-                            else
+                            else if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
                             {
-                                <span class="badge-sla ok">✓ OK</span>
+                                <a class="btn btn-primary btn-sm" asp-action="Create"><svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg> Abrir o primeiro chamado</a>
                             }
-                        </td>
-                        <td>
-                            <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Detalhes</a>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @foreach (var item in Model.Items)
+            {
+                <tr data-href="@Url.Action("Details", new { id = item.Id })">
+                    <td data-label="Nº"><strong>#@item.Id</strong></td>
+                    <td data-label="Título" class="cell-title cell-wide">@item.Title</td>
+                    <td data-label="Categoria">@item.Category</td>
+                    <td data-label="Status"><span class="badge-status @item.Status.CssClass()">@item.Status.Label()</span></td>
+                    <td data-label="Prioridade"><span class="badge-priority @item.Priority.CssClass()">@item.Priority.Label()</span></td>
+                    <td data-label="SLA">
+                        @if (item.IsSlaBreached)
+                        {
+                            <span class="badge-sla breach"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg> Vencido</span>
+                        }
+                        else
+                        {
+                            <span class="badge-sla ok"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> No prazo</span>
+                        }
+                    </td>
+                    <td>
+                        <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">
+                            Detalhes <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+                        </a>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -104,7 +151,7 @@
         <ul class="pagination justify-content-center">
             <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
                 <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)"
-                   asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">Anterior</a>
+                   asp-route-status="@Model.Status" asp-route-startDate="@startText" asp-route-endDate="@endText">Anterior</a>
             </li>
             @{
                 // Janela de páginas ao redor da atual, sempre com a primeira e a última.
@@ -121,14 +168,14 @@
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                 }
                 <li class="page-item @(p == Model.Page ? "active" : "")">
-                    <a class="page-link" asp-action="Index" asp-route-page="@p"
-                       asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">@p</a>
+                    <a class="page-link" asp-action="Index" asp-route-page="@p" aria-current="@(p == Model.Page ? "page" : null)"
+                       asp-route-status="@Model.Status" asp-route-startDate="@startText" asp-route-endDate="@endText">@p</a>
                 </li>
                 previousPage = p;
             }
             <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : "")">
                 <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)"
-                   asp-route-status="@Model.Status" asp-route-startDate="@Model.StartDate?.ToString("yyyy-MM-dd")" asp-route-endDate="@Model.EndDate?.ToString("yyyy-MM-dd")">Próxima</a>
+                   asp-route-status="@Model.Status" asp-route-startDate="@startText" asp-route-endDate="@endText">Próxima</a>
             </li>
         </ul>
     </nav>

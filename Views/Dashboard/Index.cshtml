@@ -1,28 +1,113 @@
 @model gestao_chamados.Models.ViewModels.DashboardViewModel
+@using gestao_chamados.Models
 @{
     ViewData["Title"] = "Dashboard";
+    var total = Model.TotalTickets;
+    var resolvedPct = total == 0 ? 0 : Math.Round(Model.ResolvedTickets * 100.0 / total);
+    var onTimePct = total == 0 ? 100 : Math.Round((total - Model.SlaBreachedTickets) * 100.0 / total);
+    var maxPriority = Model.ByPriority.Count == 0 ? 1 : Model.ByPriority.Values.Max();
 }
 
-<h2 class="page-title">Dashboard</h2>
-
-<div class="row g-3 mb-3">
-    <div class="col-md-3"><div class="card stats-card total h-100"><div class="card-body"><div class="stats-label">Total</div><div class="stats-value">@Model.TotalTickets</div></div></div></div>
-    <div class="col-md-3"><div class="card stats-card open h-100"><div class="card-body"><div class="stats-label">Abertos</div><div class="stats-value">@Model.OpenTickets</div></div></div></div>
-    <div class="col-md-3"><div class="card stats-card done h-100"><div class="card-body"><div class="stats-label">Resolvidos</div><div class="stats-value">@Model.ResolvedTickets</div></div></div></div>
-    <div class="col-md-3"><div class="card stats-card breach h-100"><div class="card-body"><div class="stats-label">SLA vencido</div><div class="stats-value">@Model.SlaBreachedTickets</div></div></div></div>
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Visão geral dos chamados que você pode acompanhar.</p>
+    </div>
+    <div class="page-actions">
+        <a class="btn btn-outline-secondary" asp-controller="Tickets" asp-action="Index">
+            <svg class="icon" aria-hidden="true"><use href="#i-ticket" /></svg> Ver chamados
+        </a>
+        @if (User.IsInRole(RoleNames.User) || User.IsInRole(RoleNames.Admin))
+        {
+            <a class="btn btn-primary" asp-controller="Tickets" asp-action="Create">
+                <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg> Novo chamado
+            </a>
+        }
+    </div>
 </div>
 
-<div class="card surface-card">
-    <div class="card-header">Chamados por prioridade</div>
-    <div class="card-body">
-        <ul class="list-group list-group-flush">
-            @foreach (var item in Model.ByPriority.OrderBy(x => x.Key))
-            {
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span>
-                    <strong>@item.Value</strong>
-                </li>
-            }
-        </ul>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card total h-100"><div class="card-body">
+            <div><div class="stats-label">Total</div><div class="stats-value" data-countup="@Model.TotalTickets">@Model.TotalTickets</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card open h-100"><div class="card-body">
+            <div><div class="stats-label">Em aberto</div><div class="stats-value" data-countup="@Model.OpenTickets">@Model.OpenTickets</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card done h-100"><div class="card-body">
+            <div><div class="stats-label">Resolvidos</div><div class="stats-value" data-countup="@Model.ResolvedTickets">@Model.ResolvedTickets</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card breach h-100 @(Model.SlaBreachedTickets > 0 ? "has-breach" : "")"><div class="card-body">
+            <div><div class="stats-label">SLA vencido</div><div class="stats-value" data-countup="@Model.SlaBreachedTickets">@Model.SlaBreachedTickets</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg></span>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-7 reveal">
+        <div class="card surface-card h-100">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg> Chamados por prioridade</div>
+            <div class="card-body">
+                @if (Model.ByPriority.Count == 0)
+                {
+                    <div class="empty-state">
+                        <span class="state-icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg></span>
+                        <h2 class="h6">Nenhum chamado ainda</h2>
+                        <p class="mb-0">Quando houver chamados, a distribuição por prioridade aparece aqui.</p>
+                    </div>
+                }
+                else
+                {
+                    foreach (var item in Model.ByPriority.OrderByDescending(x => x.Key))
+                    {
+                        <div class="bar-row">
+                            <span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span>
+                            <div class="bar-track" role="img" aria-label="@item.Value de @total chamados">
+                                <div class="bar-fill @item.Key.CssClass()" data-bar="@((item.Value * 100.0 / maxPriority).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"></div>
+                            </div>
+                            <span class="bar-value"><strong>@item.Value</strong></span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-5 reveal">
+        <div class="card surface-card h-100">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg> Saúde do atendimento</div>
+            <div class="card-body">
+                <div class="row g-3 align-items-center text-center">
+                    <div class="col-6">
+                        <div class="donut" role="img" aria-label="@resolvedPct% dos chamados resolvidos">
+                            <svg viewBox="0 0 120 120" aria-hidden="true">
+                                <circle class="track" cx="60" cy="60" r="50"></circle>
+                                <circle class="value" cx="60" cy="60" r="50" data-donut="@resolvedPct.ToString(System.Globalization.CultureInfo.InvariantCulture)"></circle>
+                            </svg>
+                            <div class="donut-label"><strong>@resolvedPct%</strong><span>resolvidos</span></div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="donut" role="img" aria-label="@onTimePct% dentro do prazo">
+                            <svg viewBox="0 0 120 120" aria-hidden="true">
+                                <circle class="track" cx="60" cy="60" r="50"></circle>
+                                <circle class="value" style="stroke: @(Model.SlaBreachedTickets > 0 ? "var(--c-warning)" : "var(--c-success)")" cx="60" cy="60" r="50" data-donut="@onTimePct.ToString(System.Globalization.CultureInfo.InvariantCulture)"></circle>
+                            </svg>
+                            <div class="donut-label"><strong>@onTimePct%</strong><span>no prazo</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
