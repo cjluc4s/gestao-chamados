@@ -53,6 +53,7 @@ builder.Services.Configure<SlaOptions>(builder.Configuration.GetSection(SlaOptio
 builder.Services.AddSingleton<SlaCalculator>();
 builder.Services.AddSingleton<TicketNotifier>();
 builder.Services.AddSingleton<PresenceTracker>();
+builder.Services.AddScoped<AutomationEngine>();
 builder.Services.AddHostedService<SlaMonitorService>();
 
 var app = builder.Build();

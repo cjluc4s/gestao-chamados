@@ -32,14 +32,16 @@ public class TicketsController : Controller
     private readonly IWebHostEnvironment _env;
     private readonly TicketNotifier _notifier;
     private readonly SlaCalculator _sla;
+    private readonly AutomationEngine _automation;
 
-    public TicketsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment env, TicketNotifier notifier, SlaCalculator sla)
+    public TicketsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment env, TicketNotifier notifier, SlaCalculator sla, AutomationEngine automation)
     {
         _context = context;
         _userManager = userManager;
         _env = env;
         _notifier = notifier;
         _sla = sla;
+        _automation = automation;
     }
 
     public async Task<IActionResult> Index(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate, int page = 1)
@@ -234,6 +236,9 @@ public class TicketsController : Controller
             }
         }
 
+        // Regras "Chamado criado" (ex.: atribuir por categoria, subir prioridade por palavra-chave).
+        await _automation.RunAsync(AutomationTrigger.TicketCreated, ticket);
+
         TempData["Notification"] = notification;
         await NotifyAsync("Agents", $"Novo chamado #{ticket.Id}: {ticket.Title}");
         await NotifyAsync("Admins", $"Novo chamado #{ticket.Id}: {ticket.Title}");
@@ -412,6 +417,7 @@ public class TicketsController : Controller
         });
 
         await _context.SaveChangesAsync();
+        await _automation.RunAsync(AutomationTrigger.StatusChanged, ticket);
 
         var message = $"Chamado #{id} alterado para: {status.Label()}";
         var requesterMessage = status == TicketStatus.Resolved
@@ -475,8 +481,10 @@ public class TicketsController : Controller
         TicketLifecycle.OnComment(ticket, currentUserId, User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin), now);
 
         // Resposta do solicitante encerra a espera: o chamado volta para o atendimento.
+        var resumed = false;
         if (ticket.Status == TicketStatus.WaitingUser && ticket.CreatedByUserId == currentUserId)
         {
+            resumed = true;
             ticket.Status = TicketStatus.InProgress;
             TicketLifecycle.OnStatusChanged(_sla, ticket, TicketStatus.WaitingUser, TicketStatus.InProgress, now);
             _context.TicketStatusHistory.Add(new TicketStatusHistory
@@ -490,6 +498,10 @@ public class TicketsController : Controller
         }
 
         await _context.SaveChangesAsync();
+        if (resumed)
+        {
+            await _automation.RunAsync(AutomationTrigger.StatusChanged, ticket);
+        }
 
         var authorName = (await _userManager.GetUserAsync(User))?.FullName ?? "Alguém";
         var notification = $"{authorName} comentou no chamado #{id}";
@@ -709,6 +721,7 @@ public class TicketsController : Controller
         });
 
         await _context.SaveChangesAsync();
+        await _automation.RunAsync(AutomationTrigger.StatusChanged, ticket);
 
         await NotifyOthersAsync(currentUserId, $"Chamado #{id} foi cancelado", ticket.CreatedByUserId, ticket.AssignedToUserId);
 

@@ -468,6 +468,10 @@ a {
     inset-inline: 0.75rem !important;
   }
 
+}
+
+/* Menu recolhido (hambúrguer): celulares e tablets. O menu do Admin tem 6 itens e só cabe em linha a partir de 1200px. */
+@media (max-width: 1199.98px) {
   .navbar-collapse {
     margin-top: 0.75rem;
     padding-top: 0.5rem;
@@ -1268,6 +1272,30 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 /* Compatibilidade com o toast antigo. */
 .toast-notification { background: var(--c-surface); border: 1px solid var(--c-border); border-left: 4px solid var(--c-primary); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .toast-hiding { opacity: 0; transform: translateX(20px); transition: all 0.4s ease; }
+
+/* ===== Automação ===== */
+.rule-list { display: grid; gap: 0.85rem; }
+.rule-card.is-paused { opacity: 0.72; }
+.rule-card.is-paused .rule-sentence { text-decoration: none; }
+.rule-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.rule-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.rule-sentence { margin: 0.35rem 0 0.9rem; color: var(--c-body); line-height: 1.6; }
+.rule-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.template-card { transition: transform 0.2s var(--ease), box-shadow 0.2s ease, border-color 0.2s ease; color: inherit; }
+.template-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: rgba(var(--c-primary-rgb), 0.45); }
+.template-card .feature-icon { width: 42px; height: 42px; flex: none; }
+.template-card .feature-icon .icon { width: 20px; height: 20px; }
+
+.switch { position: relative; flex: none; width: 46px; height: 26px; padding: 0; border: 0; border-radius: 999px; background: var(--c-border-strong); cursor: pointer; transition: background-color 0.2s ease; }
+.switch .knob { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.2s var(--ease); }
+.switch.on { background: var(--c-success); }
+.switch.on .knob { transform: translateX(20px); }
+
+.step-card .card-header { gap: 0.6rem; }
+.step-number { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--c-primary); color: #fff; font-size: 0.78rem; font-weight: 700; }
+[data-bs-theme='dark'] .step-number { color: #06142e; }
+.form-switch .form-check-input { width: 2.4em; height: 1.3em; cursor: pointer; }
+.form-check-label { cursor: pointer; }
 
 /* ===== Estrelas e avaliação (CSAT) ===== */
 .stars { position: relative; display: inline-flex; line-height: 1; vertical-align: middle; }

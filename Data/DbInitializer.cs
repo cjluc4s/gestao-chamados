@@ -43,6 +43,8 @@ public static class DbInitializer
             logger.LogWarning("Contas de demonstração seedadas (ambiente Development). Senha: {DemoPassword}. NÃO use isso em produção.", demoPassword);
         }
 
+        await EnsureAutomationUserAsync(context);
+
         if (!await context.Categories.AnyAsync())
         {
             context.Categories.AddRange(
@@ -54,6 +56,34 @@ public static class DbInitializer
 
             await context.SaveChangesAsync();
         }
+    }
+
+    /// <summary>
+    /// Usuário interno que assina as mudanças feitas pelas regras de automação no histórico.
+    /// Sem senha e bloqueado para sempre: não consegue entrar no sistema.
+    /// </summary>
+    private static async Task EnsureAutomationUserAsync(ApplicationDbContext context)
+    {
+        if (await context.Users.AnyAsync(u => u.Id == AutomationUser.Id))
+        {
+            return;
+        }
+
+        context.Users.Add(new ApplicationUser
+        {
+            Id = AutomationUser.Id,
+            UserName = AutomationUser.UserName,
+            NormalizedUserName = AutomationUser.UserName.ToUpperInvariant(),
+            Email = AutomationUser.UserName,
+            NormalizedEmail = AutomationUser.UserName.ToUpperInvariant(),
+            FullName = AutomationUser.FullName,
+            EmailConfirmed = true,
+            LockoutEnabled = true,
+            LockoutEnd = DateTimeOffset.MaxValue,
+            SecurityStamp = Guid.NewGuid().ToString()
+        });
+
+        await context.SaveChangesAsync();
     }
 
     private static async Task EnsureUserAsync(

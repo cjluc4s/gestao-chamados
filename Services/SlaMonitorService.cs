@@ -1,4 +1,5 @@
 using gestao_chamados.Data;
+using gestao_chamados.Models;
 
 namespace gestao_chamados.Services;
 
@@ -51,6 +52,7 @@ public sealed class SlaMonitorService : BackgroundService
         await using var scope = _scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var notifier = scope.ServiceProvider.GetRequiredService<TicketNotifier>();
+        var automation = scope.ServiceProvider.GetRequiredService<AutomationEngine>();
 
         var alerts = await SlaAlertProcessor.ProcessAsync(db, _sla, DateTime.UtcNow, ct);
 
@@ -74,6 +76,14 @@ public sealed class SlaMonitorService : BackgroundService
             await notifier.TicketChangedAsync(alert.TicketId, "sla", null, alert.CreatedByUserId, alert.AssignedToUserId);
 
             _logger.LogInformation("SLA {Kind} no chamado #{TicketId}.", alert.Kind, alert.TicketId);
+
+            // Regras "SLA em risco" / "SLA vencido". A automação não dispara outras regras.
+            await automation.RunForTicketAsync(
+                alert.Kind == SlaAlertKind.Warning ? AutomationTrigger.SlaWarning : AutomationTrigger.SlaBreached,
+                alert.TicketId, ct: ct);
         }
+
+        // Regras de inatividade ("resolvido há 3 dias sem resposta → fechar").
+        await automation.RunInactivityAsync(ct: ct);
     }
 }

@@ -37,7 +37,7 @@
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
 
     <header>
-        <nav class="navbar navbar-expand-sm app-navbar">
+        <nav class="navbar navbar-expand-xl app-navbar">
             <div class="container-xxl">
                 <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">
                     <span class="brand-mark" aria-hidden="true"><svg class="icon"><use href="#i-support" /></svg></span>
@@ -75,6 +75,11 @@
                             <li class="nav-item">
                                 <a class="@(isUsers ? "nav-link active" : "nav-link")" aria-current="@(isUsers ? "page" : null)" asp-controller="Admin" asp-action="Users">
                                     <svg class="icon" aria-hidden="true"><use href="#i-users" /></svg> Usuários
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="@NavClass("Automation")" aria-current="@NavCurrent("Automation")" asp-controller="Automation" asp-action="Index">
+                                    <svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg> Automação
                                 </a>
                             </li>
                             <li class="nav-item">

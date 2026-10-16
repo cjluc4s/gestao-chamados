@@ -1,0 +1,132 @@
+@model gestao_chamados.Models.ViewModels.AutomationIndexViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Automação";
+    var pt = CultureInfo.GetCultureInfo("pt-BR");
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Automação</h1>
+        <p class="page-subtitle">Regras que trabalham sozinhas: <strong>quando</strong> algo acontece, <strong>se</strong> o chamado combinar, <strong>então</strong> a ação é feita.</p>
+    </div>
+    <div class="page-actions">
+        <a asp-action="Create" class="btn btn-primary">
+            <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg> Nova regra
+        </a>
+    </div>
+</div>
+
+@if (Model.Rules.Count == 0)
+{
+    <div class="card surface-card mb-4">
+        <div class="empty-state">
+            <span class="state-icon"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg></span>
+            <h2>Nenhuma regra ainda</h2>
+            <p>Comece por um dos modelos abaixo ou crie a sua do zero.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="rule-list mb-4">
+        @foreach (var rule in Model.Rules)
+        {
+            <div class="card surface-card rule-card @(rule.IsEnabled ? "" : "is-paused") reveal">
+                <div class="card-body">
+                    <div class="rule-head">
+                        <div class="rule-title">
+                            <h2 class="h6 mb-1">@rule.Name</h2>
+                            @if (!rule.IsEnabled)
+                            {
+                                <span class="badge-role user">Pausada</span>
+                            }
+                        </div>
+                        <form method="post" asp-action="Toggle" asp-route-id="@rule.Id" data-no-guard>
+                            <button type="submit" class="switch @(rule.IsEnabled ? "on" : "")" role="switch" aria-checked="@(rule.IsEnabled ? "true" : "false")"
+                                    aria-label="@(rule.IsEnabled ? "Pausar" : "Ativar") a regra @rule.Name" title="@(rule.IsEnabled ? "Pausar" : "Ativar")">
+                                <span class="knob"></span>
+                            </button>
+                        </form>
+                    </div>
+                    <p class="rule-sentence">@rule.Sentence</p>
+                    <div class="rule-foot">
+                        <span class="text-muted small">
+                            @if (rule.Runs == 0)
+                            {
+                                <text>Ainda não agiu</text>
+                            }
+                            else
+                            {
+                                <text>Agiu @rule.Runs @(rule.Runs == 1 ? "vez" : "vezes") · última em @rule.LastRunAtUtc!.Value.ToLocalTime().ToString("g", pt)</text>
+                            }
+                        </span>
+                        <span class="d-flex gap-2">
+                            <a asp-action="Edit" asp-route-id="@rule.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                            <form method="post" asp-action="Delete" asp-route-id="@rule.Id"
+                                  data-confirm="O histórico de execuções desta regra também será apagado. As mudanças que ela já fez nos chamados continuam."
+                                  data-confirm-title="Excluir a regra “@rule.Name”?" data-confirm-ok="Excluir regra">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                            </form>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<h2 class="h5 mb-3">Modelos prontos</h2>
+<div class="row g-3 mb-4">
+    @foreach (var template in Model.Templates)
+    {
+        <div class="col-12 col-md-6 col-xl-4 reveal">
+            <a asp-action="Create" asp-route-template="@template.Key" class="card surface-card template-card h-100 text-decoration-none">
+                <div class="card-body">
+                    <div class="d-flex align-items-start gap-3">
+                        <span class="feature-icon mb-0"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg></span>
+                        <div>
+                            <h3 class="h6 mb-1">@template.Title</h3>
+                            <p class="text-muted small mb-0">@template.Description</p>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+<h2 class="h5 mb-3">Últimas execuções</h2>
+<div class="card surface-card">
+    <div class="card-body p-0">
+        <table class="table table-modern table-stack align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Quando</th>
+                    <th>Regra</th>
+                    <th>Chamado</th>
+                    <th>O que foi feito</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.RecentLogs.Count == 0)
+            {
+                <tr class="empty-row">
+                    <td colspan="4">
+                        <div class="empty-state py-3"><p class="mb-0">Nenhuma regra agiu ainda.</p></div>
+                    </td>
+                </tr>
+            }
+            @foreach (var log in Model.RecentLogs)
+            {
+                <tr>
+                    <td data-label="Quando" class="text-nowrap">@log.ExecutedAtUtc.ToLocalTime().ToString("g", pt)</td>
+                    <td data-label="Regra"><span class="cell-title">@log.RuleName</span></td>
+                    <td data-label="Chamado"><a asp-controller="Tickets" asp-action="Details" asp-route-id="@log.TicketId">#@log.TicketId · @log.TicketTitle</a></td>
+                    <td data-label="O que foi feito" class="cell-wide">@log.Description</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

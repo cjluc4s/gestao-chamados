@@ -1,0 +1,157 @@
+@model gestao_chamados.Models.ViewModels.AutomationRuleForm
+@using gestao_chamados.Models
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    var isNew = Model.Id == 0;
+    ViewData["Title"] = isNew ? "Nova regra" : "Editar regra";
+
+    var triggerItems = Enum.GetValues<AutomationTrigger>().Select(t => new SelectListItem(t.Label(), ((int)t).ToString())).ToList();
+    var actionItems = Enum.GetValues<AutomationActionType>().Select(a => new SelectListItem(a.Label(), ((int)a).ToString())).ToList();
+    var priorityItems = Enum.GetValues<TicketPriority>().OrderByDescending(p => p).Select(p => new SelectListItem(p.Label(), ((int)p).ToString())).ToList();
+    var statusItems = Enum.GetValues<TicketStatus>().Select(x => new SelectListItem(x.Label(), ((int)x).ToString())).ToList();
+    // "Aberto" não é destino possível: um chamado nunca volta para Aberto.
+    var targetStatusItems = statusItems.Where(i => i.Value != ((int)TicketStatus.Open).ToString()).ToList();
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">@ViewData["Title"]</h1>
+        <p class="page-subtitle">Monte a frase: <strong>quando</strong> acontecer, <strong>se</strong> o chamado combinar, <strong>então</strong> faça.</p>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm d-none d-sm-inline-flex">Voltar</a>
+</div>
+
+<form method="post" asp-action="@(isNew ? "Create" : "Edit")" asp-route-id="@(isNew ? (int?)null : Model.Id)" id="rule-form">
+    <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+    <div class="card surface-card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-8">
+                    <label asp-for="Name" class="form-label"></label>
+                    <input asp-for="Name" class="form-control" maxlength="100" placeholder="Ex.: Fechar chamados resolvidos sem retorno" />
+                    <span asp-validation-for="Name" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="form-check form-switch">
+                        <input asp-for="IsEnabled" class="form-check-input" role="switch" />
+                        <label asp-for="IsEnabled" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-card card surface-card mb-3">
+        <div class="card-header"><span class="step-number">1</span> Quando</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label asp-for="Trigger" class="form-label"></label>
+                    <select asp-for="Trigger" class="form-select" asp-items="triggerItems" id="Trigger"></select>
+                    <span asp-validation-for="Trigger" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6" data-show-trigger="5">
+                    <label asp-for="ConditionInactiveHours" class="form-label"></label>
+                    <input asp-for="ConditionInactiveHours" type="number" min="1" max="8760" class="form-control" placeholder="Ex.: 72 (3 dias)" />
+                    <div class="form-text">Sem comentário, mudança de status ou edição. A regra age uma vez por período parado.</div>
+                    <span asp-validation-for="ConditionInactiveHours" class="text-danger"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-card card surface-card mb-3">
+        <div class="card-header"><span class="step-number">2</span> Se <span class="text-muted fw-normal small ms-2">opcional · todas as condições preenchidas precisam bater</span></div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label asp-for="ConditionCategoryId" class="form-label"></label>
+                    <select asp-for="ConditionCategoryId" class="form-select" asp-items="Model.Categories"><option value="">Qualquer</option></select>
+                    <span asp-validation-for="ConditionCategoryId" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label asp-for="ConditionPriority" class="form-label"></label>
+                    <select asp-for="ConditionPriority" class="form-select" asp-items="priorityItems"><option value="">Qualquer</option></select>
+                    <span asp-validation-for="ConditionPriority" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label asp-for="ConditionStatus" class="form-label"></label>
+                    <select asp-for="ConditionStatus" class="form-select" asp-items="statusItems"><option value="">Qualquer</option></select>
+                    <span asp-validation-for="ConditionStatus" class="text-danger"></span>
+                </div>
+                <div class="col-12">
+                    <label asp-for="ConditionKeywords" class="form-label"></label>
+                    <input asp-for="ConditionKeywords" class="form-control" maxlength="200" placeholder="fora do ar, parado, urgente" />
+                    <div class="form-text">Separe por vírgula: basta uma aparecer no título ou na descrição. Não diferencia maiúsculas nem acentos.</div>
+                    <span asp-validation-for="ConditionKeywords" class="text-danger"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-card card surface-card mb-3">
+        <div class="card-header"><span class="step-number">3</span> Então</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label asp-for="ActionType" class="form-label"></label>
+                    <select asp-for="ActionType" class="form-select" asp-items="actionItems" id="ActionType"></select>
+                    <span asp-validation-for="ActionType" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6" data-show-action="1">
+                    <label asp-for="ActionAgentId" class="form-label"></label>
+                    <select asp-for="ActionAgentId" class="form-select" asp-items="Model.Agents"><option value="">Escolha…</option></select>
+                    <span asp-validation-for="ActionAgentId" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6" data-show-action="2">
+                    <label asp-for="ActionPriority" class="form-label"></label>
+                    <select asp-for="ActionPriority" class="form-select" asp-items="priorityItems"><option value="">Escolha…</option></select>
+                    <div class="form-text">Define exatamente a prioridade escolhida, mesmo que seja menor que a atual. O prazo do SLA é recalculado.</div>
+                    <span asp-validation-for="ActionPriority" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-6" data-show-action="3">
+                    <label asp-for="ActionStatus" class="form-label"></label>
+                    <select asp-for="ActionStatus" class="form-select" asp-items="targetStatusItems"><option value="">Escolha…</option></select>
+                    <div class="form-text">Segue o fluxo normal de status. A mudança aparece no histórico como feita por "Automação".</div>
+                    <span asp-validation-for="ActionStatus" class="text-danger"></span>
+                </div>
+                <div class="col-12" data-show-action="4,5,6">
+                    <label asp-for="ActionMessage" class="form-label"></label>
+                    <input asp-for="ActionMessage" class="form-control" maxlength="300" placeholder="Deixe em branco para usar a mensagem padrão" />
+                    <div class="form-text">Pode usar <code>{id}</code> e <code>{titulo}</code> do chamado.</div>
+                    <span asp-validation-for="ActionMessage" class="text-danger"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">
+            <svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> @(isNew ? "Criar regra" : "Salvar alterações")
+        </button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Mostra só os campos que fazem sentido para o gatilho e a ação escolhidos.
+        (function () {
+            var trigger = document.getElementById("Trigger");
+            var action = document.getElementById("ActionType");
+            function sync() {
+                document.querySelectorAll("[data-show-trigger]").forEach(function (el) {
+                    el.hidden = el.getAttribute("data-show-trigger").split(",").indexOf(trigger.value) === -1;
+                });
+                document.querySelectorAll("[data-show-action]").forEach(function (el) {
+                    el.hidden = el.getAttribute("data-show-action").split(",").indexOf(action.value) === -1;
+                });
+            }
+            trigger.addEventListener("change", sync);
+            action.addEventListener("change", sync);
+            sync();
+        })();
+    </script>
+}

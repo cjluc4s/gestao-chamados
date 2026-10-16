@@ -46,6 +46,7 @@ public class AdminController : Controller
     public async Task<IActionResult> Users()
     {
         var users = _userManager.Users
+            .Where(u => u.Id != AutomationUser.Id) // usuário interno das regras de automação
             .OrderBy(u => u.FullName)
             .ToList();
 
@@ -77,7 +78,7 @@ public class AdminController : Controller
         }
 
         var user = await _userManager.FindByIdAsync(userId);
-        if (user is null)
+        if (user is null || user.Id == AutomationUser.Id)
         {
             return NotFound();
         }

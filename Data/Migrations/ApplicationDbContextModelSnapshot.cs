@@ -256,6 +256,99 @@ namespace gestao_chamados.Data.Migrations
                     b.ToTable("Attachments");
                 });
 
+            modelBuilder.Entity("gestao_chamados.Models.AutomationLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExecutedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RuleId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TicketId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("RuleId", "TicketId");
+
+                    b.ToTable("AutomationLogs");
+                });
+
+            modelBuilder.Entity("gestao_chamados.Models.AutomationRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ActionAgentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ActionMessage")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ActionPriority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ActionStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ActionType")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ConditionCategoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ConditionInactiveHours")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConditionKeywords")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ConditionPriority")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ConditionStatus")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Trigger")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActionAgentId");
+
+                    b.HasIndex("ConditionCategoryId");
+
+                    b.ToTable("AutomationRules");
+                });
+
             modelBuilder.Entity("gestao_chamados.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -510,6 +603,42 @@ namespace gestao_chamados.Data.Migrations
                     b.Navigation("UploadedByUser");
                 });
 
+            modelBuilder.Entity("gestao_chamados.Models.AutomationLog", b =>
+                {
+                    b.HasOne("gestao_chamados.Models.AutomationRule", "Rule")
+                        .WithMany("Logs")
+                        .HasForeignKey("RuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("gestao_chamados.Models.Ticket", "Ticket")
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Rule");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("gestao_chamados.Models.AutomationRule", b =>
+                {
+                    b.HasOne("gestao_chamados.Models.ApplicationUser", "ActionAgent")
+                        .WithMany()
+                        .HasForeignKey("ActionAgentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("gestao_chamados.Models.Category", "ConditionCategory")
+                        .WithMany()
+                        .HasForeignKey("ConditionCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ActionAgent");
+
+                    b.Navigation("ConditionCategory");
+                });
+
             modelBuilder.Entity("gestao_chamados.Models.Ticket", b =>
                 {
                     b.HasOne("gestao_chamados.Models.ApplicationUser", "AssignedToUser")
@@ -591,6 +720,11 @@ namespace gestao_chamados.Data.Migrations
                     b.Navigation("ChangedByUser");
 
                     b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("gestao_chamados.Models.AutomationRule", b =>
+                {
+                    b.Navigation("Logs");
                 });
 
             modelBuilder.Entity("gestao_chamados.Models.Ticket", b =>

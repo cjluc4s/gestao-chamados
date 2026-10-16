@@ -17,6 +17,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<TicketStatusHistory> TicketStatusHistory => Set<TicketStatusHistory>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<TicketFeedback> TicketFeedbacks => Set<TicketFeedback>();
+    public DbSet<AutomationRule> AutomationRules => Set<AutomationRule>();
+    public DbSet<AutomationLog> AutomationLogs => Set<AutomationLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -64,6 +66,34 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(f => f.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AutomationRule>()
+            .HasOne(r => r.ConditionCategory)
+            .WithMany()
+            .HasForeignKey(r => r.ConditionCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AutomationRule>()
+            .HasOne(r => r.ActionAgent)
+            .WithMany()
+            .HasForeignKey(r => r.ActionAgentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<AutomationLog>()
+            .HasOne(l => l.Rule)
+            .WithMany(r => r.Logs)
+            .HasForeignKey(l => l.RuleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<AutomationLog>()
+            .HasOne(l => l.Ticket)
+            .WithMany()
+            .HasForeignKey(l => l.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Consulta "esta regra já agiu neste chamado?" (regras de inatividade).
+        builder.Entity<AutomationLog>()
+            .HasIndex(l => new { l.RuleId, l.TicketId });
 
         // O SQLite não guarda o "Kind" do DateTime: sem isso, as datas voltam como
         // Unspecified e a API serializa "...Utc" sem o sufixo "Z".

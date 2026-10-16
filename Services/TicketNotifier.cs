@@ -17,7 +17,7 @@ public class TicketNotifier
         _hub = hub;
     }
 
-    public Task NotifyAsync(string group, string message) =>
+    public virtual Task NotifyAsync(string group, string message) =>
         _hub.Clients.Group(group).SendAsync("ReceiveNotification", message);
 
     /// <summary>Notifica cada grupo/usuário uma única vez, sem avisar quem fez a ação.</summary>
@@ -69,7 +69,7 @@ public class TicketNotifier
     /// Avisa as telas abertas (detalhes, lista, dashboard) que um chamado mudou, para que se atualizem sozinhas.
     /// <paramref name="kind"/>: created, status, comment, assignment, edit, cancel, attachment, sla, feedback, automation.
     /// </summary>
-    public async Task TicketChangedAsync(
+    public virtual async Task TicketChangedAsync(
         int ticketId, string kind, string? byUserId, string createdByUserId, string? assignedToUserId,
         string? previousAssigneeId = null, bool assignmentChanged = false)
     {
