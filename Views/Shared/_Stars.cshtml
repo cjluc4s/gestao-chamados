@@ -1,0 +1,11 @@
+@model double
+@using System.Globalization
+@{
+    // Nota de 0 a 5 em estrelas, com preenchimento proporcional (4,3 → quatro cheias e 30% da quinta).
+    var pct = Math.Clamp(Model / 5.0 * 100, 0, 100).ToString("0.#", CultureInfo.InvariantCulture);
+    var label = Model.ToString("0.0", CultureInfo.GetCultureInfo("pt-BR"));
+}
+<span class="stars" role="img" aria-label="@label de 5 estrelas">
+    <span class="stars-base" aria-hidden="true">@for (var i = 0; i < 5; i++){<svg class="icon"><use href="#i-star" /></svg>}</span>
+    <span class="stars-fill" style="width: @pct%" aria-hidden="true">@for (var i = 0; i < 5; i++){<svg class="icon"><use href="#i-star" /></svg>}</span>
+</span>

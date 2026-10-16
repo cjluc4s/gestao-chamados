@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<TicketStatusHistory> TicketStatusHistory => Set<TicketStatusHistory>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<TicketFeedback> TicketFeedbacks => Set<TicketFeedback>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -49,6 +50,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(a => a.UploadedByUser)
             .WithMany()
             .HasForeignKey(a => a.UploadedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Uma avaliação por chamado.
+        builder.Entity<TicketFeedback>()
+            .HasOne(f => f.Ticket)
+            .WithOne(t => t.Feedback)
+            .HasForeignKey<TicketFeedback>(f => f.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<TicketFeedback>()
+            .HasOne(f => f.CreatedByUser)
+            .WithMany()
+            .HasForeignKey(f => f.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // O SQLite não guarda o "Kind" do DateTime: sem isso, as datas voltam como

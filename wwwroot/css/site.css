@@ -1269,6 +1269,58 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 .toast-notification { background: var(--c-surface); border: 1px solid var(--c-border); border-left: 4px solid var(--c-primary); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .toast-hiding { opacity: 0; transform: translateX(20px); transition: all 0.4s ease; }
 
+/* ===== Estrelas e avaliação (CSAT) ===== */
+.stars { position: relative; display: inline-flex; line-height: 1; vertical-align: middle; }
+.stars svg { width: 1.1em; height: 1.1em; flex: none; fill: currentColor; stroke: none; }
+.stars-base { display: inline-flex; color: var(--c-border-strong); }
+.stars-fill { position: absolute; left: 0; top: 0; display: inline-flex; overflow: hidden; white-space: nowrap; color: var(--pr-medium-dot); }
+
+.star-inline { fill: var(--pr-medium-dot); stroke: none; width: 0.95em; height: 0.95em; }
+
+.rating-stars { position: relative; display: inline-flex; flex-direction: row-reverse; gap: 0.15rem; }
+.rating-stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rating-stars label { cursor: pointer; padding: 0.1rem; }
+.rating-stars label svg { width: 2.1rem; height: 2.1rem; fill: transparent; stroke: var(--c-border-strong); stroke-width: 1.6; transition: transform 0.15s var(--ease), fill 0.15s ease, stroke 0.15s ease; }
+.rating-stars input:checked ~ label svg,
+.rating-stars label:hover svg,
+.rating-stars label:hover ~ label svg { fill: var(--pr-medium-dot); stroke: var(--pr-medium-dot); }
+.rating-stars label:hover svg { transform: scale(1.15); }
+.rating-stars input:focus-visible + label svg { outline: 2px solid var(--c-primary); outline-offset: 2px; border-radius: 6px; }
+.rating-caption { min-height: 1.4rem; margin-top: 0.35rem; color: var(--c-muted); font-size: 0.88rem; }
+.rating-input { border: 0; padding: 0; margin: 0; }
+.feedback-card { border-color: color-mix(in srgb, var(--pr-medium-dot) 55%, var(--c-border)); }
+
+/* ===== Métricas ===== */
+.segmented { display: inline-flex; padding: 0.2rem; border: 1px solid var(--c-border); border-radius: 999px; background: var(--c-surface); }
+.segmented a { padding: 0.35rem 0.95rem; border-radius: 999px; color: var(--c-muted); font-size: 0.86rem; font-weight: 600; text-decoration: none; transition: background-color 0.2s ease, color 0.2s ease; }
+.segmented a:hover { color: var(--c-primary); }
+.segmented a.active { background: var(--c-primary); color: #fff; }
+[data-bs-theme='dark'] .segmented a.active { color: #06142e; }
+
+.stats-hint { margin-top: 0.35rem; color: var(--c-muted); font-size: 0.8rem; }
+.stats-value-sm { font-size: clamp(1.4rem, 1.2rem + 0.8vw, 1.8rem); }
+
+.chart-scroll { overflow-x: auto; }
+.chart { display: block; width: 100%; min-width: 560px; height: auto; }
+.chart .grid { stroke: var(--c-border); stroke-width: 1; stroke-dasharray: 3 4; }
+.chart .axis { fill: var(--c-muted); font-size: 10px; font-family: var(--font); }
+.chart .bar { transition: opacity 0.15s ease; }
+.chart .bar.opened { fill: var(--c-primary); }
+.chart .bar.resolved { fill: var(--c-success); }
+.chart g:hover .bar { opacity: 0.75; }
+.chart-legend { display: inline-flex; gap: 1rem; font-size: 0.8rem; font-weight: 500; color: var(--c-muted); }
+.chart-legend .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 0.3rem; border-radius: 3px; }
+.chart-legend .swatch.opened { background: var(--c-primary); }
+.chart-legend .swatch.resolved { background: var(--c-success); }
+
+.bar-row-sm { grid-template-columns: 96px 1fr 38px; padding: 0.4rem 0; }
+.bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--c-body); font-size: 0.88rem; }
+.rating-label { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--c-body); font-size: 0.88rem; font-weight: 600; }
+.bar-fill.rating-5, .bar-fill.rating-4 { --bar: var(--c-success); }
+.bar-fill.rating-3 { --bar: var(--pr-medium-dot); }
+.bar-fill.rating-2 { --bar: var(--pr-high-dot); }
+.bar-fill.rating-1 { --bar: var(--pr-critical-dot); }
+
 /* ===== Tempo real ===== */
 .live-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.9rem; margin-top: 0.6rem; }
 

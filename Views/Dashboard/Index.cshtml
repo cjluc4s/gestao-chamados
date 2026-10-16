@@ -115,6 +115,22 @@
                         </div>
                     </div>
                 </div>
+                <hr class="my-3" />
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                    <span class="stats-label mb-0">Satisfação dos solicitantes</span>
+                    @if (Model.AverageRating.HasValue)
+                    {
+                        <span class="d-inline-flex align-items-center gap-2">
+                            <partial name="_Stars" model="@Model.AverageRating.Value" />
+                            <strong>@Model.AverageRating.Value.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("pt-BR"))</strong>
+                            <span class="text-muted small">(@Model.RatingCount)</span>
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-muted small">Sem avaliações ainda</span>
+                    }
+                </div>
             </div>
         </div>
     </div>

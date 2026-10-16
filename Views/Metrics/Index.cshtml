@@ -1,0 +1,300 @@
+@model gestao_chamados.Models.ViewModels.MetricsViewModel
+@using gestao_chamados.Models
+@using System.Globalization
+@{
+    ViewData["Title"] = "Métricas";
+    var r = Model.Report;
+    var pt = CultureInfo.GetCultureInfo("pt-BR");
+    var inv = CultureInfo.InvariantCulture;
+    string F(double v) => v.ToString("0.##", inv);
+    string Pct(double? v) => v.HasValue ? v.Value.ToString("0", pt) + "%" : "—";
+    string Dur(TimeSpan? v) => v.HasValue ? v.Value.ToShort() : "—";
+
+    // ----- gráfico de volume diário -----
+    var daily = r.Daily;
+    var n = Math.Max(daily.Count, 1);
+    var max = Math.Max(1, daily.Count == 0 ? 1 : daily.Max(d => Math.Max(d.Opened, d.Resolved)));
+    const double W = 720, H = 210, padL = 30, padR = 14, padB = 26, padT = 10;
+    var plotW = W - padL - padR;
+    var plotH = H - padB - padT;
+    var slot = plotW / n;
+    var barW = Math.Min(14, slot * 0.38);
+    var labelEvery = n > 45 ? 14 : n > 20 ? 7 : n > 10 ? 2 : 1;
+    var ticks = max <= 4 ? Enumerable.Range(0, max + 1).ToArray() : new[] { 0, max / 2, max };
+    var ratingTotal = r.RatingDistribution.Sum();
+    var maxRating = Math.Max(1, r.RatingDistribution.Max());
+    var maxPriority = r.ByPriority.Count == 0 ? 1 : r.ByPriority.Max(p => p.Value);
+    var maxCategory = r.ByCategory.Count == 0 ? 1 : r.ByCategory.Max(p => p.Value);
+}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Métricas</h1>
+        <p class="page-subtitle">
+            Últimos @Model.Days dias@(Model.IsAdmin ? "" : " · apenas chamados atribuídos a você")
+        </p>
+    </div>
+    <nav class="segmented" aria-label="Período">
+        @foreach (var d in new[] { 7, 30, 90 })
+        {
+            <a asp-action="Index" asp-route-days="@d" class="@(Model.Days == d ? "active" : "")" aria-current="@(Model.Days == d ? "page" : null)">@d dias</a>
+        }
+    </nav>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card total h-100"><div class="card-body">
+            <div><div class="stats-label">Abertos</div><div class="stats-value">@r.Opened</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card done h-100"><div class="card-body">
+            <div><div class="stats-label">Resolvidos</div><div class="stats-value">@r.Resolved</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card open h-100"><div class="card-body">
+            <div><div class="stats-label">Em fila agora</div><div class="stats-value">@r.Backlog</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3 reveal">
+        <div class="card stats-card @(r.SlaMetPercent is < 80 ? "breach" : "done") h-100"><div class="card-body">
+            <div>
+                <div class="stats-label">SLA cumprido</div>
+                <div class="stats-value">@Pct(r.SlaMetPercent)</div>
+                <div class="stats-hint">@r.SlaEvaluated @(r.SlaEvaluated == 1 ? "chamado avaliado" : "chamados avaliados")</div>
+            </div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-shield" /></svg></span>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4 reveal">
+        <div class="card surface-card h-100"><div class="card-body">
+            <div class="stats-label">Tempo até a 1ª resposta</div>
+            <div class="stats-value stats-value-sm">@Dur(r.AvgFirstResponse)</div>
+            <div class="stats-hint">média dos chamados abertos no período</div>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4 reveal">
+        <div class="card surface-card h-100"><div class="card-body">
+            <div class="stats-label">Tempo de resolução</div>
+            <div class="stats-value stats-value-sm">@Dur(r.AvgResolution)</div>
+            <div class="stats-hint">média, sem contar a espera pelo solicitante</div>
+        </div></div>
+    </div>
+    <div class="col-12 col-md-4 reveal">
+        <div class="card surface-card h-100"><div class="card-body">
+            <div class="stats-label">Satisfação (CSAT)</div>
+            @if (r.AvgRating.HasValue)
+            {
+                <div class="d-flex align-items-center gap-2">
+                    <div class="stats-value stats-value-sm">@r.AvgRating.Value.ToString("0.0", pt)</div>
+                    <partial name="_Stars" model="@r.AvgRating.Value" />
+                </div>
+                <div class="stats-hint">@r.RatingCount @(r.RatingCount == 1 ? "avaliação" : "avaliações") · @Pct(r.RatingResponsePercent) dos resolvidos</div>
+            }
+            else
+            {
+                <div class="stats-value stats-value-sm">—</div>
+                <div class="stats-hint">nenhuma avaliação no período</div>
+            }
+        </div></div>
+    </div>
+</div>
+
+<div class="card surface-card mb-3 reveal">
+    <div class="card-header">
+        <svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg> Chamados por dia
+        <span class="chart-legend ms-auto">
+            <span><i class="swatch opened"></i> Abertos</span>
+            <span><i class="swatch resolved"></i> Resolvidos</span>
+        </span>
+    </div>
+    <div class="card-body">
+        @if (r.Opened == 0 && r.Resolved == 0)
+        {
+            <div class="empty-state py-4">
+                <span class="state-icon"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg></span>
+                <h2>Sem movimento neste período</h2>
+                <p class="mb-0">Quando houver chamados abertos ou resolvidos, o gráfico aparece aqui.</p>
+            </div>
+        }
+        else
+        {
+            <div class="chart-scroll">
+                <svg class="chart" viewBox="0 0 @F(W) @F(H)" role="img" aria-label="Chamados abertos e resolvidos por dia nos últimos @Model.Days dias">
+                    @foreach (var t in ticks)
+                    {
+                        var y = padT + plotH - (double)t / max * plotH;
+                        <line class="grid" x1="@F(padL)" x2="@F(W - padR)" y1="@F(y)" y2="@F(y)" />
+                        @* <text> do SVG conflita com a tag <text> do Razor: sai como HTML cru (só números e datas formatadas). *@
+                        @Html.Raw($"<text class=\"axis\" x=\"{F(padL - 6)}\" y=\"{F(y + 3)}\" text-anchor=\"end\">{t}</text>")
+                    }
+                    @for (var i = 0; i < daily.Count; i++)
+                    {
+                        var d = daily[i];
+                        var cx = padL + i * slot + slot / 2;
+                        var oh = (double)d.Opened / max * plotH;
+                        var rh = (double)d.Resolved / max * plotH;
+                        var label = d.Day.ToString("dd/MM", pt);
+                        <g>
+                            <title>@label — @d.Opened abertos, @d.Resolved resolvidos</title>
+                            @if (d.Opened > 0)
+                            {
+                                <rect class="bar opened" x="@F(cx - barW - 1)" y="@F(padT + plotH - oh)" width="@F(barW)" height="@F(oh)" rx="2" />
+                            }
+                            @if (d.Resolved > 0)
+                            {
+                                <rect class="bar resolved" x="@F(cx + 1)" y="@F(padT + plotH - rh)" width="@F(barW)" height="@F(rh)" rx="2" />
+                            }
+                        </g>
+                        @if (i % labelEvery == 0 || i == daily.Count - 1)
+                        {
+                            @Html.Raw($"<text class=\"axis\" x=\"{F(cx)}\" y=\"{F(H - 8)}\" text-anchor=\"middle\">{label}</text>")
+                        }
+                    }
+                </svg>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-lg-4 reveal">
+        <div class="card surface-card h-100">
+            <div class="card-header">Por prioridade</div>
+            <div class="card-body">
+                @if (r.ByPriority.Count == 0)
+                {
+                    <p class="text-muted mb-0">Sem dados no período.</p>
+                }
+                @foreach (var item in r.ByPriority)
+                {
+                    <div class="bar-row bar-row-sm">
+                        <span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span>
+                        <div class="bar-track"><div class="bar-fill @item.Key.CssClass()" data-bar="@F(item.Value * 100.0 / maxPriority)"></div></div>
+                        <span class="bar-value"><strong>@item.Value</strong></span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4 reveal">
+        <div class="card surface-card h-100">
+            <div class="card-header">Por categoria</div>
+            <div class="card-body">
+                @if (r.ByCategory.Count == 0)
+                {
+                    <p class="text-muted mb-0">Sem dados no período.</p>
+                }
+                @foreach (var item in r.ByCategory)
+                {
+                    <div class="bar-row bar-row-sm">
+                        <span class="bar-label" title="@item.Key">@item.Key</span>
+                        <div class="bar-track"><div class="bar-fill" data-bar="@F(item.Value * 100.0 / maxCategory)"></div></div>
+                        <span class="bar-value"><strong>@item.Value</strong></span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4 reveal">
+        <div class="card surface-card h-100">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-star" /></svg> Notas recebidas</div>
+            <div class="card-body">
+                @if (ratingTotal == 0)
+                {
+                    <p class="text-muted mb-0">Nenhuma avaliação no período.</p>
+                }
+                else
+                {
+                    for (var stars = 5; stars >= 1; stars--)
+                    {
+                        var count = r.RatingDistribution[stars - 1];
+                        <div class="bar-row bar-row-sm">
+                            <span class="rating-label">@stars <svg class="icon star-inline" aria-hidden="true"><use href="#i-star" /></svg></span>
+                            <div class="bar-track"><div class="bar-fill rating-@stars" data-bar="@F(count * 100.0 / maxRating)"></div></div>
+                            <span class="bar-value"><strong>@count</strong></span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.IsAdmin)
+{
+    <div class="card surface-card reveal">
+        <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-users" /></svg> Por atendente <span class="text-muted fw-normal small ms-2">chamados resolvidos no período</span></div>
+        <div class="card-body p-0">
+            <table class="table table-modern table-stack align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Atendente</th>
+                        <th>Resolvidos</th>
+                        <th>1ª resposta</th>
+                        <th>Resolução</th>
+                        <th>SLA cumprido</th>
+                        <th>Satisfação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (r.Agents.Count == 0)
+                {
+                    <tr class="empty-row">
+                        <td colspan="6">
+                            <div class="empty-state py-3"><p class="mb-0">Nenhum chamado atribuído foi resolvido neste período.</p></div>
+                        </td>
+                    </tr>
+                }
+                @foreach (var a in r.Agents)
+                {
+                    <tr>
+                        <td data-label="Atendente" class="cell-wide"><span class="cell-title">@a.Name</span></td>
+                        <td data-label="Resolvidos"><strong>@a.Resolved</strong></td>
+                        <td data-label="1ª resposta">@Dur(a.AvgFirstResponse)</td>
+                        <td data-label="Resolução">@Dur(a.AvgResolution)</td>
+                        <td data-label="SLA cumprido">
+                            @if (a.SlaMetPercent.HasValue)
+                            {
+                                <span class="badge-sla @(a.SlaMetPercent >= 80 ? "ok" : "breach")">@Pct(a.SlaMetPercent)</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td data-label="Satisfação">
+                            @if (a.AvgRating.HasValue)
+                            {
+                                <span class="d-inline-flex align-items-center gap-2">
+                                    <partial name="_Stars" model="@a.AvgRating.Value" />
+                                    <span>@a.AvgRating.Value.ToString("0.0", pt) <span class="text-muted">(@a.Ratings)</span></span>
+                                </span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<p class="text-muted small mt-3 mb-0">
+    @(Model.UsesBusinessHours
+        ? "Os tempos usam o mesmo relógio do SLA: só o horário comercial conta (prioridades 24x7 contam o tempo corrido)."
+        : "Os tempos são corridos (o horário comercial do SLA está desligado).")
+    Chamados cancelados não entram nas métricas.
+</p>

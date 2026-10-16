@@ -55,6 +55,14 @@ public class DashboardController : Controller
                 .ToDictionaryAsync(x => x.Priority, x => x.Count)
         };
 
+        // Satisfação dos chamados que esta pessoa pode ver.
+        var ratings = await _context.TicketFeedbacks.AsNoTracking()
+            .Where(f => query.Any(t => t.Id == f.TicketId))
+            .Select(f => f.Rating)
+            .ToListAsync();
+        model.RatingCount = ratings.Count;
+        model.AverageRating = ratings.Count == 0 ? null : ratings.Average();
+
         return View(model);
     }
 }

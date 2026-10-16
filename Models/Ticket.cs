@@ -46,10 +46,17 @@ public class Ticket
     /// <summary>Quando o prazo estourou e o chamado foi escalonado ao Admin.</summary>
     public DateTime? SlaEscalatedAtUtc { get; set; }
 
+    /// <summary>Quando a equipe respondeu pela primeira vez (primeiro comentário de quem não é o solicitante).</summary>
+    public DateTime? FirstResponseAtUtc { get; set; }
+
+    /// <summary>Quando o chamado foi resolvido (ou fechado direto); volta a null se for reaberto.</summary>
+    public DateTime? ResolvedAtUtc { get; set; }
+
     [StringLength(260)]
     public string? AttachmentPath { get; set; }
 
     public ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
     public ICollection<TicketComment> Comments { get; set; } = new List<TicketComment>();
     public ICollection<TicketStatusHistory> StatusHistory { get; set; } = new List<TicketStatusHistory>();
+    public TicketFeedback? Feedback { get; set; }
 }

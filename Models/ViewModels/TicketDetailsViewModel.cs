@@ -28,4 +28,8 @@ public class TicketDetailsViewModel
     public bool CanAssign { get; set; }
     public string? AssignedToUserId { get; set; }
     public List<SelectListItem> AssignableAgents { get; set; } = [];
+    public bool CanRate { get; set; }
+    public int? FeedbackRating { get; set; }
+    public string? FeedbackComment { get; set; }
+    public DateTime? FeedbackAtUtc { get; set; }
 }

@@ -255,6 +255,7 @@ public class TicketsController : Controller
                 .ThenInclude(c => c.AuthorUser)
             .Include(t => t.StatusHistory)
                 .ThenInclude(h => h.ChangedByUser)
+            .Include(t => t.Feedback)
             .FirstOrDefaultAsync(t => t.Id == id);
 
         if (ticket is null)
@@ -312,6 +313,10 @@ public class TicketsController : Controller
             CanCancel = TicketWorkflowPolicy.CanCancel(ticket.Status, isAdmin, isCreator),
             CanAssign = canAssign,
             AssignedToUserId = ticket.AssignedToUserId,
+            CanRate = FeedbackPolicy.CanRate(ticket.Status, isCreator, ticket.Feedback is not null),
+            FeedbackRating = ticket.Feedback?.Rating,
+            FeedbackComment = ticket.Feedback?.Comment,
+            FeedbackAtUtc = ticket.Feedback?.CreatedAtUtc,
             AssignableAgents = canAssign ? await GetAgentSelectListAsync(ticket.AssignedToUser) : [],
             Comments = ticket.Comments
                 .OrderBy(c => c.CreatedAtUtc)
@@ -388,7 +393,7 @@ public class TicketsController : Controller
         var previous = ticket.Status;
         ticket.Status = status;
         ticket.UpdatedAtUtc = now;
-        _sla.OnStatusChanged(ticket, previous, status, now);
+        TicketLifecycle.OnStatusChanged(_sla, ticket, previous, status, now);
 
         // Atendente que movimenta um chamado sem dono passa a ser o responsável,
         // senão ele fica "Em andamento" sem ninguém atribuído.
@@ -409,7 +414,10 @@ public class TicketsController : Controller
         await _context.SaveChangesAsync();
 
         var message = $"Chamado #{id} alterado para: {status.Label()}";
-        await NotifyAsync(ticket.CreatedByUserId, message);
+        var requesterMessage = status == TicketStatus.Resolved
+            ? $"Chamado #{id} foi resolvido. Conte como foi o atendimento!"
+            : message;
+        await NotifyAsync(ticket.CreatedByUserId, requesterMessage);
         if (ticket.AssignedToUserId is not null && ticket.AssignedToUserId != currentUserId)
         {
             await NotifyAsync(ticket.AssignedToUserId, message);
@@ -464,12 +472,13 @@ public class TicketsController : Controller
         });
 
         ticket.UpdatedAtUtc = now;
+        TicketLifecycle.OnComment(ticket, currentUserId, User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin), now);
 
         // Resposta do solicitante encerra a espera: o chamado volta para o atendimento.
         if (ticket.Status == TicketStatus.WaitingUser && ticket.CreatedByUserId == currentUserId)
         {
             ticket.Status = TicketStatus.InProgress;
-            _sla.OnStatusChanged(ticket, TicketStatus.WaitingUser, TicketStatus.InProgress, now);
+            TicketLifecycle.OnStatusChanged(_sla, ticket, TicketStatus.WaitingUser, TicketStatus.InProgress, now);
             _context.TicketStatusHistory.Add(new TicketStatusHistory
             {
                 TicketId = id,
@@ -688,7 +697,7 @@ public class TicketsController : Controller
         var previous = ticket.Status;
         ticket.Status = TicketStatus.Cancelled;
         ticket.UpdatedAtUtc = now;
-        _sla.OnStatusChanged(ticket, previous, TicketStatus.Cancelled, now);
+        TicketLifecycle.OnStatusChanged(_sla, ticket, previous, TicketStatus.Cancelled, now);
 
         _context.TicketStatusHistory.Add(new TicketStatusHistory
         {
@@ -705,6 +714,73 @@ public class TicketsController : Controller
 
         await NotifyChangedAsync(ticket, "cancel");
         TempData["Notification"] = "Chamado cancelado.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Rate(int id, int rating, string? comment)
+    {
+        var ticket = await _context.Tickets
+            .Include(t => t.Feedback)
+            .FirstOrDefaultAsync(t => t.Id == id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        if (!CanAccessTicket(ticket))
+        {
+            return Forbid();
+        }
+
+        var currentUserId = _userManager.GetUserId(User);
+        if (currentUserId is null)
+        {
+            return Challenge();
+        }
+
+        if (!FeedbackPolicy.CanRate(ticket.Status, ticket.CreatedByUserId == currentUserId, ticket.Feedback is not null))
+        {
+            TempData["Notification"] = ticket.Feedback is not null
+                ? "Este chamado já foi avaliado."
+                : "Só o solicitante pode avaliar, depois que o chamado for resolvido.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var error = FeedbackPolicy.Validate(rating, comment);
+        if (error is not null)
+        {
+            TempData["Notification"] = error;
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        _context.TicketFeedbacks.Add(new TicketFeedback
+        {
+            TicketId = id,
+            Rating = rating,
+            Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(),
+            CreatedByUserId = currentUserId,
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Duas avaliações ao mesmo tempo: o índice único do banco deixa passar só a primeira.
+            TempData["Notification"] = "Este chamado já foi avaliado.";
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        var stars = new string('★', rating);
+        await NotifyOthersAsync(currentUserId, $"Chamado #{id} avaliado com {rating} {(rating == 1 ? "estrela" : "estrelas")} {stars}",
+            ticket.AssignedToUserId ?? "Admins", "Admins");
+        await NotifyChangedAsync(ticket, "feedback");
+
+        TempData["Notification"] = "Obrigado pela avaliação!";
         return RedirectToAction(nameof(Details), new { id });
     }
 

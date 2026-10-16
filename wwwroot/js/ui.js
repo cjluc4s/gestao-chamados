@@ -279,6 +279,17 @@
         });
     }
 
+    // ---------- Avaliação por estrelas: mostra o texto da nota escolhida ----------
+    // Delegado no documento: o cartão pode ser trocado ao vivo (live.js).
+    function initRating() {
+        document.addEventListener("change", function (e) {
+            var input = e.target;
+            if (!input.matches || !input.matches('.rating-stars input[type="radio"]')) return;
+            var caption = input.closest("fieldset").querySelector("[data-rating-caption]");
+            if (caption) caption.textContent = input.value + " de 5 · " + input.getAttribute("data-label");
+        });
+    }
+
     // ---------- Linhas clicáveis ----------
     // Delegado no documento: continua valendo quando a lista é trocada ao vivo (live.js).
     function initClickableRows() {
@@ -323,6 +334,7 @@
         initPasswordToggles();
         initDropzones();
         initClickableRows();
+        initRating();
         initTableFilter();
         initReveal();
         initCountUp();

@@ -58,6 +58,48 @@ public class MigrationTests
     }
 
     [Fact]
+    public async Task MetricsMigration_BackfillsResolutionAndFirstResponseOfOldTickets()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var migrator = context.GetService<IMigrator>();
+        var previous = context.GetService<IMigrationsAssembly>().Migrations.Keys.Single(k => k.EndsWith("_SlaInteligente"));
+
+        await migrator.MigrateAsync(previous);
+
+        await context.Database.ExecuteSqlRawAsync(@"
+            INSERT INTO AspNetUsers (Id, FullName, AccessFailedCount, EmailConfirmed, LockoutEnabled, PhoneNumberConfirmed, TwoFactorEnabled)
+            VALUES ('req', 'Solicitante', 0, 1, 1, 0, 0), ('ag', 'Atendente', 0, 1, 1, 0, 0);
+            INSERT INTO Categories (Id, Name) VALUES (1, 'Geral');
+            INSERT INTO Tickets (Id, Title, Description, Priority, Status, CategoryId, CreatedByUserId, CreatedAtUtc, SlaPausedSeconds)
+            VALUES (1, 'Resolvido', 'D', 2, 4, 1, 'req', '2026-10-01 10:00:00', 0),
+                   (2, 'Aberto', 'D', 2, 1, 1, 'req', '2026-10-01 10:00:00', 0);
+            INSERT INTO TicketStatusHistory (TicketId, FromStatus, ToStatus, ChangedByUserId, ChangedAtUtc)
+            VALUES (1, 1, 2, 'ag', '2026-10-01 11:00:00'), (1, 2, 4, 'ag', '2026-10-01 15:00:00'),
+                   (1, 4, 2, 'ag', '2026-10-02 09:00:00'), (1, 2, 4, 'ag', '2026-10-02 12:00:00');
+            INSERT INTO TicketComments (TicketId, Message, AuthorUserId, CreatedAtUtc)
+            VALUES (1, 'oi', 'req', '2026-10-01 10:05:00'), (1, 'resposta', 'ag', '2026-10-01 10:30:00'),
+                   (1, 'outra', 'ag', '2026-10-01 11:30:00');");
+
+        await migrator.MigrateAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT Id, ResolvedAtUtc, FirstResponseAtUtc FROM Tickets ORDER BY Id";
+        await using var reader = await command.ExecuteReaderAsync();
+
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal("2026-10-02 12:00:00", reader.GetString(1)); // última vez que foi resolvido
+        Assert.Equal("2026-10-01 10:30:00", reader.GetString(2)); // 1º comentário de quem não abriu o chamado
+
+        Assert.True(await reader.ReadAsync());
+        Assert.True(reader.IsDBNull(1));
+        Assert.True(reader.IsDBNull(2));
+    }
+
+    [Fact]
     public async Task Model_HasNoPendingChangesComparedToTheMigrations()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");

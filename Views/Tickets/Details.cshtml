@@ -237,6 +237,59 @@
             </div>
         </div>
 
+        <div data-live-region="feedback">
+        @if (Model.FeedbackRating is { } given)
+        {
+            <div class="card surface-card mb-3">
+                <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-star" /></svg> Avaliação do atendimento</div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <partial name="_Stars" model="@((double)given)" />
+                        <strong>@FeedbackPolicy.Label(given)</strong>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(Model.FeedbackComment))
+                    {
+                        <p class="comment-text mt-2 mb-1">@Model.FeedbackComment</p>
+                    }
+                    <small class="text-muted">Avaliado em @Model.FeedbackAtUtc?.ToLocalTime().ToString("g")</small>
+                </div>
+            </div>
+        }
+        else if (Model.CanRate)
+        {
+            <div class="card surface-card mb-3 feedback-card">
+                <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-star" /></svg> Como foi o atendimento?</div>
+                <div class="card-body">
+                    <form method="post" asp-action="Rate">
+                        <input type="hidden" name="id" value="@Model.Id" />
+                        <fieldset class="rating-input">
+                            <legend class="visually-hidden">Nota do atendimento</legend>
+                            <div class="rating-stars">
+                                @for (var v = 5; v >= 1; v--)
+                                {
+                                    <input type="radio" name="rating" id="rate-@v" value="@v" required data-label="@FeedbackPolicy.Label(v)" />
+                                    <label for="rate-@v" title="@FeedbackPolicy.Label(v)"><svg class="icon" aria-hidden="true"><use href="#i-star" /></svg><span class="visually-hidden">@v @(v == 1 ? "estrela" : "estrelas")</span></label>
+                                }
+                            </div>
+                            <div class="rating-caption" aria-live="polite" data-rating-caption>Escolha de 1 a 5 estrelas</div>
+                        </fieldset>
+                        <label for="rate-comment" class="form-label mt-3">Quer deixar um comentário? <span class="text-muted fw-normal">(opcional)</span></label>
+                        <textarea id="rate-comment" name="comment" class="form-control" rows="3" maxlength="@FeedbackPolicy.MaxCommentLength" placeholder="O que foi bom? O que podemos melhorar?"></textarea>
+                        <button type="submit" class="btn btn-primary w-100 mt-3">Enviar avaliação</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (Model.Status is TicketStatus.Resolved or TicketStatus.Closed)
+        {
+            <div class="card surface-card mb-3">
+                <div class="card-body text-muted small d-flex align-items-center gap-2">
+                    <svg class="icon" aria-hidden="true"><use href="#i-star" /></svg> Ainda sem avaliação do solicitante.
+                </div>
+            </div>
+        }
+        </div>
+
         @if (User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin))
         {
             <div class="card surface-card mb-3" data-live-region="actions">

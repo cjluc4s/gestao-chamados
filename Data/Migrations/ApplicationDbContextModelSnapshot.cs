@@ -303,8 +303,14 @@ namespace gestao_chamados.Data.Migrations
                     b.Property<DateTime?>("DueAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("FirstResponseAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("SlaEscalatedAtUtc")
                         .HasColumnType("TEXT");
@@ -368,6 +374,39 @@ namespace gestao_chamados.Data.Migrations
                     b.HasIndex("TicketId");
 
                     b.ToTable("TicketComments");
+                });
+
+            modelBuilder.Entity("gestao_chamados.Models.TicketFeedback", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TicketId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("TicketId")
+                        .IsUnique();
+
+                    b.ToTable("TicketFeedbacks");
                 });
 
             modelBuilder.Entity("gestao_chamados.Models.TicketStatusHistory", b =>
@@ -516,6 +555,25 @@ namespace gestao_chamados.Data.Migrations
                     b.Navigation("Ticket");
                 });
 
+            modelBuilder.Entity("gestao_chamados.Models.TicketFeedback", b =>
+                {
+                    b.HasOne("gestao_chamados.Models.ApplicationUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("gestao_chamados.Models.Ticket", "Ticket")
+                        .WithOne("Feedback")
+                        .HasForeignKey("gestao_chamados.Models.TicketFeedback", "TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Ticket");
+                });
+
             modelBuilder.Entity("gestao_chamados.Models.TicketStatusHistory", b =>
                 {
                     b.HasOne("gestao_chamados.Models.ApplicationUser", "ChangedByUser")
@@ -540,6 +598,8 @@ namespace gestao_chamados.Data.Migrations
                     b.Navigation("Attachments");
 
                     b.Navigation("Comments");
+
+                    b.Navigation("Feedback");
 
                     b.Navigation("StatusHistory");
                 });
