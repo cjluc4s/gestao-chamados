@@ -22,15 +22,28 @@
     };
 }
 
+<div data-live-ticket="@Model.Id">
+
+<div class="notice notice-warning mb-3" id="live-gone" role="alert" hidden>
+    <svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg>
+    <span>Este chamado mudou e você não tem mais acesso a ele. <a asp-action="Index">Voltar para a lista</a></span>
+</div>
+
 <div class="page-header">
     <div>
-        <h1 class="page-title">#@Model.Id · @Model.Title</h1>
-        <div class="title-badges">
-            <span class="badge-status @Model.Status.CssClass()">@Model.Status.Label()</span>
-            <span class="badge-priority @Model.Priority.CssClass()">@Model.Priority.Label()</span>
+        <div data-live-region="title">
+            <h1 class="page-title">#@Model.Id · @Model.Title</h1>
+            <div class="title-badges">
+                <span class="badge-status @Model.Status.CssClass()">@Model.Status.Label()</span>
+                <span class="badge-priority @Model.Priority.CssClass()">@Model.Priority.Label()</span>
+            </div>
+        </div>
+        <div class="live-row">
+            <span class="live-pill" data-live-status data-state="connecting"><span class="dot"></span><span class="label">Conectando…</span></span>
+            <div class="presence" id="presence" aria-live="polite" hidden></div>
         </div>
     </div>
-    <div class="page-actions">
+    <div class="page-actions" data-live-region="toolbar">
         <a asp-action="Index" class="btn btn-outline-secondary">Voltar</a>
         @if (Model.CanEdit)
         {
@@ -50,7 +63,7 @@
 <div class="row g-3">
     <div class="col-12 col-lg-8">
         <div class="card surface-card mb-3">
-            <div class="card-body">
+            <div class="card-body" data-live-region="summary">
                 <p class="ticket-description">@Model.Description</p>
                 <hr />
                 <dl class="meta-grid mb-0">
@@ -65,6 +78,7 @@
         <div class="card surface-card mb-3">
             <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-paperclip" /></svg> Anexos</div>
             <div class="card-body">
+                <div data-live-region="attachments">
                 @if (!Model.Attachments.Any())
                 {
                     <p class="text-muted">Sem anexos.</p>
@@ -85,6 +99,7 @@
                         }
                     </ul>
                 }
+                </div>
 
                 <form method="post" asp-action="UploadToTicket" enctype="multipart/form-data">
                     <input type="hidden" name="id" value="@Model.Id" />
@@ -105,6 +120,7 @@
         <div class="card surface-card mb-3">
             <div class="card-header">Interações</div>
             <div class="card-body">
+                <div data-live-region="comments">
                 @if (!Model.Comments.Any())
                 {
                     <p class="text-muted">Sem interações ainda.</p>
@@ -127,6 +143,12 @@
                         </div>
                     }
                 }
+                </div>
+
+                <div class="typing-indicator" id="typing" aria-live="polite" hidden>
+                    <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span><span class="typing-name"></span> está digitando…</span>
+                </div>
 
                 <form method="post" asp-action="AddComment" class="mt-3">
                     <input type="hidden" name="id" value="@Model.Id" />
@@ -141,7 +163,7 @@
     </div>
 
     <div class="col-12 col-lg-4">
-        <div class="card surface-card mb-3">
+        <div class="card surface-card mb-3" data-live-region="sla">
             <div class="card-header">
                 <svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> SLA
                 @if (Model.IsSlaEscalated)
@@ -217,7 +239,7 @@
 
         @if (User.IsInRole(RoleNames.Agent) || User.IsInRole(RoleNames.Admin))
         {
-            <div class="card surface-card mb-3">
+            <div class="card surface-card mb-3" data-live-region="actions">
                 <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg> Ações</div>
                 <div class="card-body">
                     <div class="action-block">
@@ -273,7 +295,7 @@
             </div>
         }
 
-        <div class="card surface-card">
+        <div class="card surface-card" data-live-region="history">
             <div class="card-header">Histórico de status</div>
             <div class="card-body">
                 @if (!Model.History.Any())
@@ -299,4 +321,6 @@
             </div>
         </div>
     </div>
+</div>
+
 </div>

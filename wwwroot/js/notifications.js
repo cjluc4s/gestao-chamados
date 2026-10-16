@@ -113,12 +113,28 @@
         container.appendChild(toast);
 
         function dismiss() {
+            clearTimeout(timer);
             toast.classList.add("is-leaving");
             setTimeout(function () { toast.remove(); }, 380);
         }
 
+        // O fechamento é por temporizador (e não pelo fim da animação da barra): com "reduzir movimento"
+        // ativado no sistema as animações são zeradas e o aviso sumiria na hora.
+        // O mouse em cima pausa a contagem.
+        var remaining = TOAST_MS;
+        var startedAt = Date.now();
+        var timer = setTimeout(dismiss, remaining);
+
+        toast.addEventListener("mouseenter", function () {
+            clearTimeout(timer);
+            remaining -= Date.now() - startedAt;
+        });
+        toast.addEventListener("mouseleave", function () {
+            startedAt = Date.now();
+            timer = setTimeout(dismiss, Math.max(remaining, 1500));
+        });
+
         close.addEventListener("click", dismiss);
-        bar.addEventListener("animationend", dismiss);
         // Limita a pilha: descarta os mais antigos.
         while (container.children.length > 4) container.firstElementChild.remove();
     }
@@ -148,7 +164,26 @@
 
     connection.on("ReceiveNotification", onNotification);
 
-    connection.start().catch(function (err) {
-        console.error("SignalR:", err.toString());
-    });
+    function emit(state) {
+        document.dispatchEvent(new CustomEvent("hd:status", { detail: state }));
+    }
+
+    connection.onreconnecting(function () { emit("reconnecting"); });
+    connection.onreconnected(function () { emit("live"); });
+    connection.onclose(function () { emit("offline"); });
+
+    var started = connection.start()
+        .then(function () { emit("live"); return true; })
+        .catch(function (err) {
+            console.error("SignalR:", err.toString());
+            emit("offline");
+            return false;
+        });
+
+    // Conexão compartilhada com live.js (tempo real nas telas).
+    window.hd = {
+        connection: connection,
+        started: started,
+        userId: document.body.getAttribute("data-user-id")
+    };
 })();

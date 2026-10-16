@@ -237,6 +237,7 @@ public class TicketsController : Controller
         TempData["Notification"] = notification;
         await NotifyAsync("Agents", $"Novo chamado #{ticket.Id}: {ticket.Title}");
         await NotifyAsync("Admins", $"Novo chamado #{ticket.Id}: {ticket.Title}");
+        await NotifyChangedAsync(ticket, "created");
         return RedirectToAction(nameof(Details), new { id = ticket.Id });
     }
 
@@ -414,6 +415,7 @@ public class TicketsController : Controller
             await NotifyAsync(ticket.AssignedToUserId, message);
         }
 
+        await NotifyChangedAsync(ticket, "status");
         TempData["Notification"] = "Status atualizado.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -495,6 +497,7 @@ public class TicketsController : Controller
             await NotifyAsync(ticket.AssignedToUserId, notification);
         }
 
+        await NotifyChangedAsync(ticket, "comment");
         TempData["Notification"] = "Interação registrada.";
 
         return RedirectToAction(nameof(Details), new { id });
@@ -552,6 +555,7 @@ public class TicketsController : Controller
         var agentName = (await _userManager.GetUserAsync(User))?.FullName ?? "Um atendente";
         await NotifyAsync(ticket.CreatedByUserId, $"{agentName} assumiu o chamado #{id}");
 
+        await _notifier.TicketChangedAsync(id, "assignment", currentUserId, ticket.CreatedByUserId, currentUserId, ticket.AssignedToUserId, assignmentChanged: true);
         TempData["Notification"] = "Chamado atribuído a você.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -644,6 +648,7 @@ public class TicketsController : Controller
             : $"Chamado #{id} editado";
         await NotifyOthersAsync(currentUserId, message, ticket.CreatedByUserId, ticket.AssignedToUserId ?? "Agents");
 
+        await NotifyChangedAsync(ticket, "edit");
         TempData["Notification"] = priorityChanged
             ? "Chamado atualizado. O limite do SLA foi recalculado para a nova prioridade."
             : "Chamado atualizado.";
@@ -698,6 +703,7 @@ public class TicketsController : Controller
 
         await NotifyOthersAsync(currentUserId, $"Chamado #{id} foi cancelado", ticket.CreatedByUserId, ticket.AssignedToUserId);
 
+        await NotifyChangedAsync(ticket, "cancel");
         TempData["Notification"] = "Chamado cancelado.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -752,6 +758,8 @@ public class TicketsController : Controller
             await NotifyOthersAsync(currentUserId, $"Chamado #{id} voltou para a fila de atendimento", ticket.CreatedByUserId);
             TempData["Notification"] = "Chamado devolvido à fila de atendimento.";
         }
+
+        await NotifyChangedAsync(ticket, "assignment", previousAssigneeId, assignmentChanged: true);
 
         if (previousAssigneeId is not null)
         {
@@ -816,6 +824,10 @@ public class TicketsController : Controller
         }
 
         var (saved, rejected) = await SaveAttachmentsAsync(ticket.Id, currentUserId, files);
+        if (saved > 0)
+        {
+            await NotifyChangedAsync(ticket, "attachment");
+        }
 
         var notification = saved > 0 ? $"{saved} anexo(s) enviado(s) com sucesso." : "Nenhum anexo foi enviado.";
         if (rejected > 0)
@@ -842,6 +854,10 @@ public class TicketsController : Controller
 
     private Task NotifyAsync(string group, string message) =>
         _notifier.NotifyAsync(group, message);
+
+    /// <summary>Avisa as telas abertas (detalhes, lista, dashboard) para se atualizarem sozinhas.</summary>
+    private Task NotifyChangedAsync(Ticket ticket, string kind, string? previousAssigneeId = null, bool assignmentChanged = false) =>
+        _notifier.TicketChangedAsync(ticket.Id, kind, _userManager.GetUserId(User), ticket.CreatedByUserId, ticket.AssignedToUserId, previousAssigneeId, assignmentChanged);
 
     /// <summary>
     /// Notifica cada grupo/usuário uma única vez, sem avisar quem fez a ação.

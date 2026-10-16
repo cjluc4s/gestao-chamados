@@ -58,10 +58,12 @@
     }
 
     // ---------- Contagem animada nos indicadores ----------
-    function initCountUp() {
-        document.querySelectorAll("[data-countup]").forEach(function (el) {
+    // animate = false aplica o valor direto (usado nas atualizações ao vivo, para não "piscar").
+    function initCountUp(root, animate) {
+        (root || document).querySelectorAll("[data-countup]").forEach(function (el) {
             var target = parseInt(el.getAttribute("data-countup"), 10);
-            if (isNaN(target) || reduceMotion || target === 0) { el.textContent = isNaN(target) ? el.textContent : target; return; }
+            if (isNaN(target)) return;
+            if (animate === false || reduceMotion || target === 0) { el.textContent = target; return; }
             var start = null, duration = 900;
             function step(ts) {
                 if (start === null) start = ts;
@@ -75,12 +77,13 @@
     }
 
     // ---------- Barras e anel de progresso (dashboard) ----------
-    function initMeters() {
+    function initMeters(root) {
         requestAnimationFrame(function () {
-            document.querySelectorAll("[data-bar]").forEach(function (el) {
+            var scope = root || document;
+            scope.querySelectorAll("[data-bar]").forEach(function (el) {
                 el.style.width = el.getAttribute("data-bar") + "%";
             });
-            document.querySelectorAll("[data-donut]").forEach(function (el) {
+            scope.querySelectorAll("[data-donut]").forEach(function (el) {
                 var pct = parseFloat(el.getAttribute("data-donut")) || 0;
                 var r = parseFloat(el.getAttribute("r"));
                 var c = 2 * Math.PI * r;
@@ -277,13 +280,14 @@
     }
 
     // ---------- Linhas clicáveis ----------
+    // Delegado no documento: continua valendo quando a lista é trocada ao vivo (live.js).
     function initClickableRows() {
-        document.querySelectorAll("tr[data-href]").forEach(function (row) {
-            row.addEventListener("click", function (e) {
-                if (e.target.closest("a, button, input, select, textarea, label")) return;
-                if (window.getSelection && String(window.getSelection())) return;
-                window.location.href = row.getAttribute("data-href");
-            });
+        document.addEventListener("click", function (e) {
+            var row = e.target.closest && e.target.closest("tr[data-href]");
+            if (!row) return;
+            if (e.target.closest("a, button, input, select, textarea, label")) return;
+            if (window.getSelection && String(window.getSelection())) return;
+            window.location.href = row.getAttribute("data-href");
         });
     }
 
@@ -324,4 +328,7 @@
         initCountUp();
         initMeters();
     });
+
+    // Usado por live.js depois de trocar trechos da página.
+    window.hdUi = { countUp: initCountUp, meters: initMeters };
 })();

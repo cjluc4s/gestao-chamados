@@ -8,10 +8,12 @@
     var maxPriority = Model.ByPriority.Count == 0 ? 1 : Model.ByPriority.Values.Max();
 }
 
+<div data-live-dashboard>
 <div class="page-header">
     <div>
         <h1 class="page-title">Dashboard</h1>
         <p class="page-subtitle">Visão geral dos chamados que você pode acompanhar.</p>
+        <span class="live-pill mt-2" data-live-status data-state="connecting"><span class="dot"></span><span class="label">Conectando…</span></span>
     </div>
     <div class="page-actions">
         <a class="btn btn-outline-secondary" asp-controller="Tickets" asp-action="Index">
@@ -26,7 +28,7 @@
     </div>
 </div>
 
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3" data-live-region="stats">
     <div class="col-6 col-lg reveal">
         <div class="card stats-card total h-100"><div class="card-body">
             <div><div class="stats-label">Total</div><div class="stats-value" data-countup="@Model.TotalTickets">@Model.TotalTickets</div></div>
@@ -59,7 +61,7 @@
     </div>
 </div>
 
-<div class="row g-3">
+<div class="row g-3" data-live-region="charts">
     <div class="col-12 col-lg-7 reveal">
         <div class="card surface-card h-100">
             <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-chart" /></svg> Chamados por prioridade</div>
@@ -116,4 +118,5 @@
             </div>
         </div>
     </div>
+</div>
 </div>

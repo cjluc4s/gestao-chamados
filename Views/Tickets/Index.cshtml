@@ -8,12 +8,14 @@
     var endText = Model.EndDate?.ToString("yyyy-MM-dd");
 }
 
+<div data-live-list>
 <div class="page-header">
     <div>
         <h1 class="page-title">Chamados</h1>
-        <p class="page-subtitle">
+        <p class="page-subtitle" data-live-region="count">
             <span class="result-count">@Model.TotalCount @(Model.TotalCount == 1 ? "chamado" : "chamados")@(hasFilters ? " com os filtros aplicados" : "")</span>
         </p>
+        <span class="live-pill mt-1" data-live-status data-state="connecting"><span class="dot"></span><span class="label">Conectando…</span></span>
     </div>
     <div class="page-actions">
         <a class="btn btn-outline-success btn-sm" asp-action="ExportCsv"
@@ -81,7 +83,12 @@
     </div>
 </div>
 
-<div class="card surface-card">
+<button type="button" class="live-banner" id="live-list-pill" hidden>
+    <svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg>
+    Há atualizações na lista. <strong>Clique para atualizar</strong>
+</button>
+
+<div class="card surface-card" data-live-region="table">
     <div class="card-body p-0">
         <table class="table table-modern table-stack align-middle mb-0">
             <thead>
@@ -160,6 +167,7 @@
     </div>
 </div>
 
+<div data-live-region="pagination">
 @if (Model.TotalPages > 1)
 {
     <nav class="mt-3" aria-label="Paginação de chamados">
@@ -195,3 +203,5 @@
         </ul>
     </nav>
 }
+</div>
+</div>

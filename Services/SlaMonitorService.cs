@@ -71,6 +71,8 @@ public sealed class SlaMonitorService : BackgroundService
                     responsible, "Admins", alert.CreatedByUserId);
             }
 
+            await notifier.TicketChangedAsync(alert.TicketId, "sla", null, alert.CreatedByUserId, alert.AssignedToUserId);
+
             _logger.LogInformation("SLA {Kind} no chamado #{TicketId}.", alert.Kind, alert.TicketId);
         }
     }

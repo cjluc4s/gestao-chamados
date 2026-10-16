@@ -52,6 +52,7 @@ builder.Services.Configure<SecurityStampValidatorOptions>(options =>
 builder.Services.Configure<SlaOptions>(builder.Configuration.GetSection(SlaOptions.Section));
 builder.Services.AddSingleton<SlaCalculator>();
 builder.Services.AddSingleton<TicketNotifier>();
+builder.Services.AddSingleton<PresenceTracker>();
 builder.Services.AddHostedService<SlaMonitorService>();
 
 var app = builder.Build();
