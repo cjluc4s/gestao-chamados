@@ -1,3 +1,4 @@
+using gestao_chamados.Data;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace gestao_chamados.Models.ViewModels;
@@ -15,6 +16,9 @@ public class TicketDetailsViewModel
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? DueAtUtc { get; set; }
     public bool IsSlaBreached { get; set; }
+    public bool IsSlaEscalated { get; set; }
+    public bool SlaUsesBusinessHours { get; set; }
+    public SlaSnapshot Sla { get; set; } = new(SlaState.Ok, false, 0, TimeSpan.Zero, TimeSpan.Zero);
     public List<TicketCommentViewModel> Comments { get; set; } = [];
     public List<TicketStatusHistoryViewModel> History { get; set; } = [];
     public List<AttachmentViewModel> Attachments { get; set; } = [];

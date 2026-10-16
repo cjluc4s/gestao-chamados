@@ -34,6 +34,18 @@ public class Ticket
     public DateTime? UpdatedAtUtc { get; set; }
     public DateTime? DueAtUtc { get; set; }
 
+    /// <summary>Quando o relógio do SLA parou (aguardando usuário, resolvido, fechado, cancelado); null = correndo.</summary>
+    public DateTime? SlaPausedAtUtc { get; set; }
+
+    /// <summary>Total de tempo (útil, quando aplicável) em que o relógio já ficou parado; empurra o limite.</summary>
+    public long SlaPausedSeconds { get; set; }
+
+    /// <summary>Quando o alerta de "em risco" foi disparado (uma vez por vida do prazo).</summary>
+    public DateTime? SlaWarnedAtUtc { get; set; }
+
+    /// <summary>Quando o prazo estourou e o chamado foi escalonado ao Admin.</summary>
+    public DateTime? SlaEscalatedAtUtc { get; set; }
+
     [StringLength(260)]
     public string? AttachmentPath { get; set; }
 

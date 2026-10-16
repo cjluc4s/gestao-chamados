@@ -1,6 +1,7 @@
 using gestao_chamados.Data;
 using gestao_chamados.Hubs;
 using gestao_chamados.Models;
+using gestao_chamados.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Infrastructure;
@@ -48,7 +49,15 @@ builder.Services.Configure<SecurityStampValidatorOptions>(options =>
     options.ValidationInterval = TimeSpan.FromMinutes(1);
 });
 
+builder.Services.Configure<SlaOptions>(builder.Configuration.GetSection(SlaOptions.Section));
+builder.Services.AddSingleton<SlaCalculator>();
+builder.Services.AddSingleton<TicketNotifier>();
+builder.Services.AddHostedService<SlaMonitorService>();
+
 var app = builder.Build();
+
+// Falha já na inicialização se o calendário do SLA estiver mal configurado.
+_ = app.Services.GetRequiredService<SlaCalculator>();
 
 await DbInitializer.SeedAsync(app.Services, app.Environment, app.Configuration);
 

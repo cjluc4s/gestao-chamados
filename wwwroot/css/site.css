@@ -640,6 +640,7 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 .stats-card.total  { --accent: var(--c-primary); }
 .stats-card.open   { --accent: var(--c-warning); }
 .stats-card.done   { --accent: var(--c-success); }
+.stats-card.risk   { --accent: var(--pr-high-dot); }
 .stats-card.breach { --accent: var(--c-danger); }
 
 .stats-card .card-body { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
@@ -880,6 +881,8 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 .badge-sla { font-size: 0.75rem; }
 .badge-sla.ok      { background-color: var(--sla-ok-bg);     color: var(--sla-ok-fg); }
 .badge-sla.breach  { background-color: var(--sla-breach-bg); color: var(--sla-breach-fg); }
+.badge-sla.risk    { background-color: var(--pr-medium-bg); color: var(--pr-medium-fg); }
+.badge-sla.paused  { background-color: var(--st-waiting-bg); color: var(--st-waiting-fg); }
 
 .badge-role.admin { background: var(--st-waiting-bg); color: var(--st-waiting-fg); }
 .badge-role.agent { background: var(--st-progress-bg); color: var(--st-progress-fg); }
@@ -1269,6 +1272,8 @@ h2.page-title:not(.mb-0) { margin-bottom: 1rem; }
 /* ===== SLA (página do admin) ===== */
 .sla-meter { height: 8px; width: 100%; max-width: 220px; border-radius: 999px; background: var(--c-surface-2); border: 1px solid var(--c-border); overflow: hidden; }
 .sla-meter span { display: block; height: 100%; border-radius: inherit; background: var(--bar, var(--c-primary)); }
+.sla-meter-lg { height: 12px; max-width: none; }
+.sla-meter .bar-fill { transition: width 0.9s var(--ease); }
 
 /* ===== Animações ===== */
 .reveal { opacity: 0; transform: translateY(14px); transition: opacity 0.55s var(--ease), transform 0.55s var(--ease); transition-delay: var(--d, 0ms); }

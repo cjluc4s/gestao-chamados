@@ -15,7 +15,7 @@ namespace gestao_chamados.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -305,6 +305,18 @@ namespace gestao_chamados.Data.Migrations
 
                     b.Property<int>("Priority")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SlaEscalatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("SlaPausedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SlaPausedSeconds")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SlaWarnedAtUtc")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");

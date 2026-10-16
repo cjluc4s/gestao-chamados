@@ -12,65 +12,59 @@ public class SlaPolicyTests
     [InlineData(TicketPriority.Low, 24)]
     public void GetDeadline_ReturnsExpectedWindow(TicketPriority priority, double expectedHours)
     {
-        var deadline = SlaPolicy.GetDeadline(priority);
-
-        Assert.Equal(TimeSpan.FromHours(expectedHours), deadline);
+        Assert.Equal(TimeSpan.FromHours(expectedHours), SlaPolicy.GetDeadline(priority));
     }
 
     private static readonly DateTime Now = new(2026, 10, 15, 12, 0, 0, DateTimeKind.Utc);
 
-    [Theory]
-    [InlineData(TicketStatus.Open)]
-    [InlineData(TicketStatus.InProgress)]
-    [InlineData(TicketStatus.WaitingUser)]
-    public void IsBreached_TrueWhenOverdueAndStillOpen(TicketStatus status)
+    [Fact]
+    public void IsBreached_TrueWhenDeadlinePassedAndClockRunning()
     {
-        Assert.True(SlaPolicy.IsBreached(Now.AddMinutes(-1), status, Now));
-    }
-
-    [Theory]
-    [InlineData(TicketStatus.Resolved)]
-    [InlineData(TicketStatus.Closed)]
-    [InlineData(TicketStatus.Cancelled)]
-    public void IsBreached_FalseOnceResolvedOrClosed(TicketStatus status)
-    {
-        Assert.False(SlaPolicy.IsBreached(Now.AddHours(-5), status, Now));
+        Assert.True(SlaPolicy.IsBreached(Now.AddMinutes(-1), pausedAtUtc: null, Now));
     }
 
     [Fact]
     public void IsBreached_FalseBeforeDeadlineOrWithoutDeadline()
     {
-        Assert.False(SlaPolicy.IsBreached(Now.AddMinutes(1), TicketStatus.Open, Now));
-        Assert.False(SlaPolicy.IsBreached(null, TicketStatus.Open, Now));
+        Assert.False(SlaPolicy.IsBreached(Now.AddMinutes(1), null, Now));
+        Assert.False(SlaPolicy.IsBreached(null, null, Now));
     }
 
     [Fact]
-    public void RecalculateDueAt_KeepsDeadlineWhenPriorityUnchanged()
+    public void IsBreached_StoppedClockUsesTheInstantItStopped()
     {
-        var created = Now.AddHours(-1);
-        var currentDue = Now.AddHours(30); // ex: limite antigo, de antes de uma mudança de regra
+        var due = Now.AddHours(-5);
 
-        Assert.Equal(currentDue, SlaPolicy.RecalculateDueAt(created, currentDue, TicketPriority.Low, TicketPriority.Low));
+        // Parou antes do limite: continua "no prazo" por mais tempo que passe.
+        Assert.False(SlaPolicy.IsBreached(due, pausedAtUtc: due.AddHours(-1), Now));
+
+        // Já estava atrasado quando parou: continua atrasado.
+        Assert.True(SlaPolicy.IsBreached(due, pausedAtUtc: due.AddHours(1), Now));
     }
 
     [Theory]
-    [InlineData(TicketPriority.Low, TicketPriority.Critical, 2)]
-    [InlineData(TicketPriority.Critical, TicketPriority.Low, 24)]
-    [InlineData(TicketPriority.Medium, TicketPriority.High, 4)]
-    public void RecalculateDueAt_CountsFromCreationWhenPriorityChanges(TicketPriority from, TicketPriority to, double expectedHours)
+    [InlineData(TicketStatus.Open, false, false)]
+    [InlineData(TicketStatus.InProgress, false, false)]
+    [InlineData(TicketStatus.WaitingUser, true, false)]
+    [InlineData(TicketStatus.Resolved, true, true)]
+    [InlineData(TicketStatus.Closed, true, true)]
+    [InlineData(TicketStatus.Cancelled, true, true)]
+    public void StatusGroups_MatchTheSlaRules(TicketStatus status, bool clockStopped, bool done)
     {
-        var created = Now.AddHours(-1);
-        var currentDue = SlaPolicy.GetDueAt(created, from);
-
-        Assert.Equal(created.AddHours(expectedHours), SlaPolicy.RecalculateDueAt(created, currentDue, from, to));
+        Assert.Equal(clockStopped, SlaPolicy.IsClockStopped(status));
+        Assert.Equal(done, SlaPolicy.IsDone(status));
     }
 
     [Fact]
-    public void RecalculateDueAt_RaisingPriorityOfOldTicketMakesItOverdue()
+    public void EveryStatus_IsCoveredByTheStatusGroups()
     {
-        var created = Now.AddHours(-5);
-        var newDue = SlaPolicy.RecalculateDueAt(created, SlaPolicy.GetDueAt(created, TicketPriority.Low), TicketPriority.Low, TicketPriority.Critical);
-
-        Assert.True(SlaPolicy.IsBreached(newDue, TicketStatus.Open, Now));
+        // Se alguém criar um status novo, este teste obriga a decidir se o relógio para.
+        foreach (var status in Enum.GetValues<TicketStatus>())
+        {
+            if (SlaPolicy.IsDone(status))
+            {
+                Assert.True(SlaPolicy.IsClockStopped(status), $"{status} é 'encerrado' mas o relógio não para.");
+            }
+        }
     }
 }

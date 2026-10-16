@@ -1,14 +1,13 @@
 using System.Globalization;
 using System.Text;
 using gestao_chamados.Data;
-using gestao_chamados.Hubs;
 using gestao_chamados.Models;
 using gestao_chamados.Models.ViewModels;
+using gestao_chamados.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
@@ -31,14 +30,16 @@ public class TicketsController : Controller
     private readonly ApplicationDbContext _context;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IWebHostEnvironment _env;
-    private readonly IHubContext<NotificationHub> _hub;
+    private readonly TicketNotifier _notifier;
+    private readonly SlaCalculator _sla;
 
-    public TicketsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment env, IHubContext<NotificationHub> hub)
+    public TicketsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IWebHostEnvironment env, TicketNotifier notifier, SlaCalculator sla)
     {
         _context = context;
         _userManager = userManager;
         _env = env;
-        _hub = hub;
+        _notifier = notifier;
+        _sla = sla;
     }
 
     public async Task<IActionResult> Index(TicketStatus? status, string? userId, DateTime? startDate, DateTime? endDate, int page = 1)
@@ -87,7 +88,7 @@ public class TicketsController : Controller
                 CsvFormatter.Escape(t.AssignedTo ?? "—"),
                 t.CreatedAtUtc.ToLocalTime().ToString("g", PtBr),
                 t.DueAtUtc?.ToLocalTime().ToString("g", PtBr) ?? "—",
-                t.IsSlaBreached ? "Vencido" : "OK"
+                t.SlaLabel
             ));
         }
 
@@ -157,7 +158,7 @@ public class TicketsController : Controller
                             t.CreatedBy,
                             t.AssignedTo ?? "—",
                             t.CreatedAtUtc.ToLocalTime().ToString("dd/MM/yy HH:mm"),
-                            t.IsSlaBreached ? "Vencido" : "OK"
+                            t.SlaLabel
                         };
                         foreach (var cell in cells)
                         {
@@ -207,9 +208,9 @@ public class TicketsController : Controller
             CategoryId = model.CategoryId,
             Status = TicketStatus.Open,
             CreatedByUserId = currentUserId,
-            CreatedAtUtc = now,
-            DueAtUtc = SlaPolicy.GetDueAt(now, model.Priority)
+            CreatedAtUtc = now
         };
+        _sla.Start(ticket);
 
         // Chamado e histórico inicial no mesmo SaveChanges: ou grava os dois, ou nenhum.
         ticket.StatusHistory.Add(new TicketStatusHistory
@@ -285,6 +286,7 @@ public class TicketsController : Controller
         var isCreator = ticket.CreatedByUserId == _userManager.GetUserId(User);
         var canChangeStatus = isAdmin || User.IsInRole(RoleNames.Agent);
         var canAssign = isAdmin && !TicketWorkflowPolicy.IsFinal(ticket.Status);
+        var sla = _sla.Evaluate(ticket, DateTime.UtcNow);
 
         var model = new TicketDetailsViewModel
         {
@@ -298,7 +300,10 @@ public class TicketsController : Controller
             AssignedTo = ticket.AssignedToUser?.FullName,
             CreatedAtUtc = ticket.CreatedAtUtc,
             DueAtUtc = ticket.DueAtUtc,
-            IsSlaBreached = SlaPolicy.IsBreached(ticket.DueAtUtc, ticket.Status, DateTime.UtcNow),
+            IsSlaBreached = sla.Breached,
+            Sla = sla,
+            IsSlaEscalated = ticket.SlaEscalatedAtUtc.HasValue,
+            SlaUsesBusinessHours = _sla.UsesBusinessHours(ticket.Priority),
             AllowedStatuses = canChangeStatus
                 ? TicketWorkflowPolicy.GetAllowedTransitions(ticket.Status, isAdmin).ToList()
                 : [],
@@ -382,6 +387,7 @@ public class TicketsController : Controller
         var previous = ticket.Status;
         ticket.Status = status;
         ticket.UpdatedAtUtc = now;
+        _sla.OnStatusChanged(ticket, previous, status, now);
 
         // Atendente que movimenta um chamado sem dono passa a ser o responsável,
         // senão ele fica "Em andamento" sem ninguém atribuído.
@@ -461,6 +467,7 @@ public class TicketsController : Controller
         if (ticket.Status == TicketStatus.WaitingUser && ticket.CreatedByUserId == currentUserId)
         {
             ticket.Status = TicketStatus.InProgress;
+            _sla.OnStatusChanged(ticket, TicketStatus.WaitingUser, TicketStatus.InProgress, now);
             _context.TicketStatusHistory.Add(new TicketStatusHistory
             {
                 TicketId = id,
@@ -616,13 +623,19 @@ public class TicketsController : Controller
             return View(model);
         }
 
+        var now = DateTime.UtcNow;
         var priorityChanged = ticket.Priority != model.Priority;
-        ticket.DueAtUtc = SlaPolicy.RecalculateDueAt(ticket.CreatedAtUtc, ticket.DueAtUtc, ticket.Priority, model.Priority);
         ticket.Title = model.Title.Trim();
         ticket.Description = model.Description.Trim();
         ticket.CategoryId = model.CategoryId;
         ticket.Priority = model.Priority;
-        ticket.UpdatedAtUtc = DateTime.UtcNow;
+        ticket.UpdatedAtUtc = now;
+        if (priorityChanged)
+        {
+            // O prazo sempre conta a partir da abertura: subir a prioridade de um chamado antigo
+            // pode deixá-lo imediatamente vencido, que é o que se quer sinalizar.
+            _sla.RecalculateDue(ticket, now);
+        }
 
         await _context.SaveChangesAsync();
 
@@ -670,6 +683,7 @@ public class TicketsController : Controller
         var previous = ticket.Status;
         ticket.Status = TicketStatus.Cancelled;
         ticket.UpdatedAtUtc = now;
+        _sla.OnStatusChanged(ticket, previous, TicketStatus.Cancelled, now);
 
         _context.TicketStatusHistory.Add(new TicketStatusHistory
         {
@@ -827,18 +841,13 @@ public class TicketsController : Controller
             ticket.CreatedByUserId == _userManager.GetUserId(User));
 
     private Task NotifyAsync(string group, string message) =>
-        _hub.Clients.Group(group).SendAsync("ReceiveNotification", message);
+        _notifier.NotifyAsync(group, message);
 
     /// <summary>
     /// Notifica cada grupo/usuário uma única vez, sem avisar quem fez a ação.
     /// </summary>
-    private async Task NotifyOthersAsync(string currentUserId, string message, params string?[] groups)
-    {
-        foreach (var group in groups.OfType<string>().Distinct().Where(g => g != currentUserId))
-        {
-            await NotifyAsync(group, message);
-        }
-    }
+    private Task NotifyOthersAsync(string currentUserId, string message, params string?[] groups) =>
+        _notifier.NotifyOthersAsync(currentUserId, message, groups);
 
     private async Task ValidatePriorityAndCategoryAsync(TicketPriority priority, int categoryId)
     {
@@ -1004,7 +1013,9 @@ public class TicketsController : Controller
             AssignedTo = t.AssignedToUser != null ? t.AssignedToUser.FullName : null,
             CreatedAtUtc = t.CreatedAtUtc,
             DueAtUtc = t.DueAtUtc,
-            IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < nowUtc
-                && !SlaPolicy.ClockStoppedStatuses.Contains(t.Status)
+            // Mesma conta de SlaPolicy.IsBreached: com o relógio parado vale o instante em que parou.
+            IsSlaBreached = t.DueAtUtc.HasValue && t.DueAtUtc.Value < (t.SlaPausedAtUtc ?? nowUtc),
+            IsSlaWarned = t.SlaWarnedAtUtc != null,
+            IsSlaEscalated = t.SlaEscalatedAtUtc != null
         });
 }

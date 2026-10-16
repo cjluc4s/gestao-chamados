@@ -27,25 +27,31 @@
 </div>
 
 <div class="row g-3 mb-3">
-    <div class="col-6 col-lg-3 reveal">
+    <div class="col-6 col-lg reveal">
         <div class="card stats-card total h-100"><div class="card-body">
             <div><div class="stats-label">Total</div><div class="stats-value" data-countup="@Model.TotalTickets">@Model.TotalTickets</div></div>
             <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg></span>
         </div></div>
     </div>
-    <div class="col-6 col-lg-3 reveal">
+    <div class="col-6 col-lg reveal">
         <div class="card stats-card open h-100"><div class="card-body">
             <div><div class="stats-label">Em aberto</div><div class="stats-value" data-countup="@Model.OpenTickets">@Model.OpenTickets</div></div>
             <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg></span>
         </div></div>
     </div>
-    <div class="col-6 col-lg-3 reveal">
+    <div class="col-6 col-lg reveal">
         <div class="card stats-card done h-100"><div class="card-body">
             <div><div class="stats-label">Resolvidos</div><div class="stats-value" data-countup="@Model.ResolvedTickets">@Model.ResolvedTickets</div></div>
             <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg></span>
         </div></div>
     </div>
-    <div class="col-6 col-lg-3 reveal">
+    <div class="col-6 col-lg reveal">
+        <div class="card stats-card risk h-100"><div class="card-body">
+            <div><div class="stats-label">Em risco</div><div class="stats-value" data-countup="@Model.SlaAtRiskTickets">@Model.SlaAtRiskTickets</div></div>
+            <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg></span>
+        </div></div>
+    </div>
+    <div class="col-12 col-lg reveal">
         <div class="card stats-card breach h-100 @(Model.SlaBreachedTickets > 0 ? "has-breach" : "")"><div class="card-body">
             <div><div class="stats-label">SLA vencido</div><div class="stats-value" data-countup="@Model.SlaBreachedTickets">@Model.SlaBreachedTickets</div></div>
             <span class="stats-icon"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg></span>

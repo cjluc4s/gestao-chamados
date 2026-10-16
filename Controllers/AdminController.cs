@@ -13,16 +13,32 @@ public class AdminController : Controller
     private static readonly string[] AssignableRoles = { RoleNames.Admin, RoleNames.Agent, RoleNames.User };
 
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly SlaCalculator _sla;
 
-    public AdminController(UserManager<ApplicationUser> userManager)
+    public AdminController(UserManager<ApplicationUser> userManager, SlaCalculator sla)
     {
         _userManager = userManager;
+        _sla = sla;
     }
 
     public IActionResult Priorities()
     {
-        var model = Enum.GetValues<TicketPriority>()
-            .ToDictionary(p => p, SlaPolicy.GetDeadline);
+        var calendar = _sla.Calendar;
+        var model = new SlaSettingsViewModel
+        {
+            Priorities = Enum.GetValues<TicketPriority>()
+                .OrderByDescending(p => p)
+                .Select(p => new SlaPriorityRow(p, _sla.Budget(p), _sla.UsesBusinessHours(p)))
+                .ToList(),
+            BusinessHoursEnabled = calendar is not null,
+            TimeZone = calendar?.Zone.DisplayName ?? string.Empty,
+            Start = calendar?.Start ?? TimeSpan.Zero,
+            End = calendar?.End ?? TimeSpan.Zero,
+            Days = calendar?.Days.OrderBy(d => d == DayOfWeek.Sunday ? 7 : (int)d).ToList() ?? [],
+            Holidays = calendar?.Holidays.OrderBy(h => h).ToList() ?? [],
+            WarnAtPercent = (int)Math.Round(_sla.WarnAt * 100),
+            MonitorIntervalSeconds = _sla.Options.MonitorIntervalSeconds
+        };
 
         return View(model);
     }

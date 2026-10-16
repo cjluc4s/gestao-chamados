@@ -142,18 +142,76 @@
 
     <div class="col-12 col-lg-4">
         <div class="card surface-card mb-3">
-            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> SLA</div>
+            <div class="card-header">
+                <svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> SLA
+                @if (Model.IsSlaEscalated)
+                {
+                    <span class="badge-sla breach ms-auto">Escalonado</span>
+                }
+            </div>
             <div class="card-body">
-                <dl class="sla-box mb-0 @(Model.IsSlaBreached ? "breach" : "ok")">
-                    <span class="stats-icon" style="--accent: var(@(Model.IsSlaBreached ? "--c-danger" : "--c-success"))">
-                        <svg class="icon" aria-hidden="true"><use href="#@(Model.IsSlaBreached ? "i-alert" : "i-check")" /></svg>
-                    </span>
-                    <div>
-                        <dt>Limite</dt>
-                        <dd>@(Model.DueAtUtc?.ToLocalTime().ToString("g") ?? "-")</dd>
-                        <span class="badge-sla @(Model.IsSlaBreached ? "breach" : "ok") mt-1">@(Model.IsSlaBreached ? "SLA vencido" : "Dentro do SLA")</span>
+                @{
+                    var sla = Model.Sla;
+                    var badgeClass = sla.State switch
+                    {
+                        SlaState.Breached => "breach",
+                        SlaState.AtRisk => "risk",
+                        SlaState.Paused => "paused",
+                        SlaState.Done => sla.Breached ? "breach" : "ok",
+                        _ => "ok"
+                    };
+                    var badgeText = sla.State switch
+                    {
+                        SlaState.Breached => "SLA vencido",
+                        SlaState.AtRisk => "Em risco",
+                        SlaState.Paused => "Relógio pausado",
+                        SlaState.Done => sla.Breached ? "Encerrado fora do prazo" : "Encerrado no prazo",
+                        _ => "Dentro do SLA"
+                    };
+                    var barColor = badgeClass switch
+                    {
+                        "breach" => "var(--c-danger)",
+                        "risk" => "var(--c-warning)",
+                        "paused" => "var(--st-waiting-fg)",
+                        _ => "var(--c-success)"
+                    };
+                    var percent = Math.Min(100, (int)Math.Round(sla.Consumed * 100));
+                    var unit = Model.SlaUsesBusinessHours ? "úteis" : "corridas";
+                }
+                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                    <span class="badge-sla @badgeClass">@badgeText</span>
+                    <span class="text-muted small">@((int)Math.Round(sla.Consumed * 100))% do prazo</span>
+                </div>
+                <div class="sla-meter sla-meter-lg mb-3" role="progressbar" aria-valuenow="@percent" aria-valuemin="0" aria-valuemax="100" aria-label="Prazo consumido">
+                    <span class="bar-fill" style="--bar: @barColor; width: 0" data-bar="@percent"></span>
+                </div>
+                <dl class="meta-grid mb-0">
+                    <div class="meta-item"><dt>Limite</dt><dd>@(Model.DueAtUtc?.ToLocalTime().ToString("g") ?? "-")</dd></div>
+                    <div class="meta-item">
+                        @switch (sla.State)
+                        {
+                            case SlaState.Breached:
+                                <dt>Atraso</dt><dd class="text-danger">@sla.Overdue.ToShort() @unit</dd>
+                                break;
+                            case SlaState.Paused:
+                                <dt>Situação</dt><dd>Aguardando o solicitante</dd>
+                                break;
+                            case SlaState.Done:
+                                <dt>Situação</dt><dd>@(sla.Breached ? "Prazo estourado" : "Prazo cumprido")</dd>
+                                break;
+                            default:
+                                <dt>Restam</dt><dd>@sla.Remaining.ToShort() @unit</dd>
+                                break;
+                        }
                     </div>
                 </dl>
+                <p class="text-muted small mt-3 mb-0">
+                    @(Model.SlaUsesBusinessHours ? "Conta só o horário comercial." : "Conta 24 horas por dia.")
+                    @if (sla.State != SlaState.Done)
+                    {
+                        <text> O relógio pausa enquanto o chamado aguarda o solicitante.</text>
+                    }
+                </p>
             </div>
         </div>
 

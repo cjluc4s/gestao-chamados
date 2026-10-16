@@ -1,8 +1,11 @@
-@model Dictionary<gestao_chamados.Models.TicketPriority, TimeSpan>
+@model gestao_chamados.Models.ViewModels.SlaSettingsViewModel
 @using gestao_chamados.Models
+@using System.Globalization
 @{
     ViewData["Title"] = "SLAs por prioridade";
-    var maxHours = Model.Count == 0 ? 1 : Model.Values.Max(v => v.TotalHours);
+    var maxHours = Model.Priorities.Count == 0 ? 1 : Model.Priorities.Max(p => p.Budget.TotalHours);
+    var pt = CultureInfo.GetCultureInfo("pt-BR");
+    string DayName(DayOfWeek d) => pt.DateTimeFormat.GetAbbreviatedDayName(d).TrimEnd('.');
 }
 
 <div class="page-header">
@@ -12,30 +15,78 @@
     </div>
 </div>
 
-<div class="card surface-card">
-    <div class="card-body p-0">
-        <table class="table table-modern table-stack align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Prioridade</th>
-                    <th>Tempo máximo</th>
-                    <th>Comparativo</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var item in Model.OrderByDescending(x => x.Key))
-            {
-                <tr>
-                    <td data-label="Prioridade"><span class="badge-priority @item.Key.CssClass()">@item.Key.Label()</span></td>
-                    <td data-label="Tempo máximo"><strong>@item.Value.TotalHours.ToString("0") horas</strong></td>
-                    <td data-label="Comparativo" class="w-50">
-                        <div class="sla-meter" role="img" aria-label="@item.Value.TotalHours horas de @maxHours">
-                            <span class="bar-fill @item.Key.CssClass()" style="width: 0; --bar: var(--pr-@(item.Key.CssClass())-dot)" data-bar="@((item.Value.TotalHours * 100 / maxHours).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))"></span>
-                        </div>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+<div class="row g-3">
+    <div class="col-12 col-xl-8">
+        <div class="card surface-card">
+            <div class="card-body p-0">
+                <table class="table table-modern table-stack align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Prioridade</th>
+                            <th>Prazo</th>
+                            <th>Relógio</th>
+                            <th>Comparativo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.Priorities)
+                    {
+                        <tr>
+                            <td data-label="Prioridade"><span class="badge-priority @row.Priority.CssClass()">@row.Priority.Label()</span></td>
+                            <td data-label="Prazo"><strong>@row.Budget.TotalHours.ToString("0") horas</strong></td>
+                            <td data-label="Relógio">
+                                @if (row.UsesBusinessHours)
+                                {
+                                    <span class="badge-role user">Horas úteis</span>
+                                }
+                                else
+                                {
+                                    <span class="badge-role agent">24x7</span>
+                                }
+                            </td>
+                            <td data-label="Comparativo" class="w-25">
+                                <div class="sla-meter" role="img" aria-label="@row.Budget.TotalHours horas de @maxHours">
+                                    <span class="bar-fill @row.Priority.CssClass()" style="width: 0; --bar: var(--pr-@(row.Priority.CssClass())-dot)" data-bar="@((row.Budget.TotalHours * 100 / maxHours).ToString("0.##", CultureInfo.InvariantCulture))"></span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-4">
+        <div class="card surface-card mb-3">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> Calendário</div>
+            <div class="card-body">
+                @if (Model.BusinessHoursEnabled)
+                {
+                    <dl class="meta-grid mb-0">
+                        <div class="meta-item"><dt>Expediente</dt><dd>@Model.Start.ToString(@"hh\:mm") às @Model.End.ToString(@"hh\:mm")</dd></div>
+                        <div class="meta-item"><dt>Dias úteis</dt><dd>@string.Join(", ", Model.Days.Select(DayName))</dd></div>
+                        <div class="meta-item"><dt>Fuso</dt><dd>@Model.TimeZone</dd></div>
+                        <div class="meta-item"><dt>Feriados</dt><dd>@(Model.Holidays.Count == 0 ? "Nenhum" : string.Join(", ", Model.Holidays.Select(h => h.ToString("dd/MM/yyyy"))))</dd></div>
+                    </dl>
+                }
+                else
+                {
+                    <p class="mb-0 text-muted">Horário comercial desligado: o relógio corre 24 horas por dia, todos os dias.</p>
+                }
+            </div>
+        </div>
+
+        <div class="card surface-card">
+            <div class="card-header"><svg class="icon" aria-hidden="true"><use href="#i-zap" /></svg> Como o SLA funciona</div>
+            <div class="card-body">
+                <ul class="mb-0 ps-3 small">
+                    <li class="mb-2">O relógio <strong>pausa</strong> quando o chamado fica em "Aguardando usuário" e retoma quando o solicitante responde.</li>
+                    <li class="mb-2">Aos <strong>@Model.WarnAtPercent%</strong> do prazo, o responsável e os admins recebem um alerta de risco.</li>
+                    <li class="mb-2">Ao vencer, o chamado é <strong>escalonado</strong> e o Admin é avisado, uma única vez.</li>
+                    <li>A verificação roda a cada @Model.MonitorIntervalSeconds s. Ajustes ficam na seção <code>Sla</code> do <code>appsettings.json</code>.</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>

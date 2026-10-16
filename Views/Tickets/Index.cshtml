@@ -1,5 +1,6 @@
 @model gestao_chamados.Models.ViewModels.PagedTicketListViewModel
 @using gestao_chamados.Models
+@using gestao_chamados.Data
 @{
     ViewData["Title"] = "Chamados";
     var hasFilters = Model.Status.HasValue || Model.StartDate.HasValue || Model.EndDate.HasValue;
@@ -124,13 +125,27 @@
                     <td data-label="Status"><span class="badge-status @item.Status.CssClass()">@item.Status.Label()</span></td>
                     <td data-label="Prioridade"><span class="badge-priority @item.Priority.CssClass()">@item.Priority.Label()</span></td>
                     <td data-label="SLA">
-                        @if (item.IsSlaBreached)
+                        @switch (item.SlaState)
                         {
-                            <span class="badge-sla breach"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg> Vencido</span>
+                            case SlaState.Breached:
+                                <span class="badge-sla breach"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg> @item.SlaLabel</span>
+                                break;
+                            case SlaState.AtRisk:
+                                <span class="badge-sla risk"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> @item.SlaLabel</span>
+                                break;
+                            case SlaState.Paused:
+                                <span class="badge-sla paused"><svg class="icon" aria-hidden="true"><use href="#i-clock" /></svg> @item.SlaLabel</span>
+                                break;
+                            case SlaState.Done when item.IsSlaBreached:
+                                <span class="badge-sla breach"><svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg> @item.SlaLabel</span>
+                                break;
+                            default:
+                                <span class="badge-sla ok"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> @item.SlaLabel</span>
+                                break;
                         }
-                        else
+                        @if (item.IsSlaEscalated && item.SlaState is SlaState.Breached or SlaState.Paused)
                         {
-                            <span class="badge-sla ok"><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg> No prazo</span>
+                            <span class="badge-sla breach ms-1" title="Escalonado ao Admin">Escalonado</span>
                         }
                     </td>
                     <td>
